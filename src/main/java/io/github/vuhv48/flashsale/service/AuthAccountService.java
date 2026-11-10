@@ -1,5 +1,8 @@
-package io.github.vuhv48.flashsale.auth;
+package io.github.vuhv48.flashsale.service;
 
+import io.github.vuhv48.flashsale.auth.AccessRefreshResult;
+import io.github.vuhv48.flashsale.auth.AdminUserSearchResponse;
+import io.github.vuhv48.flashsale.auth.RegisterOutcome;
 import io.github.vuhv48.flashsale.security.user.AppUserDetails;
 
 import java.util.List;

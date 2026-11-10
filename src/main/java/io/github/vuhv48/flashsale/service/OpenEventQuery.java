@@ -1,4 +1,4 @@
-package io.github.vuhv48.flashsale.role;
+package io.github.vuhv48.flashsale.service;
 
 import org.springframework.stereotype.Component;
 

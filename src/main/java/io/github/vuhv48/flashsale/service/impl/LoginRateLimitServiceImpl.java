@@ -1,5 +1,6 @@
-package io.github.vuhv48.flashsale.auth;
+package io.github.vuhv48.flashsale.service.impl;
 
+import io.github.vuhv48.flashsale.service.LoginRateLimitService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;

@@ -1,6 +1,7 @@
-package io.github.vuhv48.flashsale.role;
+package io.github.vuhv48.flashsale.service;
 
 import io.github.vuhv48.flashsale.persistence.repository.EffectivePermissionRow;
+import io.github.vuhv48.flashsale.role.MyPermission;
 import io.github.vuhv48.flashsale.persistence.repository.UserAccountRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

@@ -2,7 +2,9 @@
 
 Ứng dụng Spring Boot, package `io.github.vuhv48.flashsale`. Phần đang chạy là **đăng nhập / đăng ký / phiên làm việc**. Chưa có API sản phẩm, giỏ hàng, đơn flash sale.
 
-Các API công khai (không cần token): `POST /api/auth/login`, `POST /api/auth/register`, `POST /api/auth/refresh`, `GET /actuator/health`. Mọi request khác phải gửi `Authorization: Bearer {{accessToken}}`.
+Các API công khai (không cần token): `POST /api/auth/login`, `POST /api/auth/register`, `POST /api/auth/refresh`, `GET /actuator/health`, cùng trang Swagger. Mọi API còn lại phải gửi `Authorization: Bearer {{accessToken}}`.
+
+Swagger UI: [http://localhost:8088/swagger-ui.html](http://localhost:8088/swagger-ui.html). Mô tả OpenAPI nằm ở `/v3/api-docs`. Bấm **Authorize**, dán access token (không cần chữ `Bearer `) rồi thử các API cần đăng nhập.
 
 Các lệnh dùng biến Postman `base_url` = `http://localhost:8088`. Trong Postman chọn **Import → Raw text**, dán cả khối `curl`, rồi bấm Import. Không dán vào ô URL.
 

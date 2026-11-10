@@ -1,4 +1,4 @@
-package io.github.vuhv48.flashsale.auth;
+package io.github.vuhv48.flashsale.service;
 
 public interface LoginRateLimitService {
 

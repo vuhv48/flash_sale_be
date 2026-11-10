@@ -1,5 +1,6 @@
-package io.github.vuhv48.flashsale.auth;
+package io.github.vuhv48.flashsale.service.impl;
 
+import io.github.vuhv48.flashsale.service.RegisterWelcomeMailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;

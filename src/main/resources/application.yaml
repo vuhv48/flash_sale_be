@@ -41,6 +41,16 @@ app:
         path: /api/auth/refresh
       - method: GET
         path: /actuator/health
+      - method: GET
+        path: /swagger-ui.html
+      - method: GET
+        path: /swagger-ui/**
+      - method: GET
+        path: /v3/api-docs
+      - method: GET
+        path: /v3/api-docs/**
+      - method: GET
+        path: /v3/api-docs.yaml
     jwt:
       secret: ${JWT_SECRET:dev-only-change-in-production-min-32-chars-ok}
       issuer: flash-sale

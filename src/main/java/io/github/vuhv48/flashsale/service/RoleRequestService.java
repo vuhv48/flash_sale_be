@@ -1,6 +1,9 @@
-package io.github.vuhv48.flashsale.role;
+package io.github.vuhv48.flashsale.service;
 
 import io.github.vuhv48.flashsale.auth.OrganizerApplication;
+import io.github.vuhv48.flashsale.role.RoleCatalogItem;
+import io.github.vuhv48.flashsale.role.RoleRequestView;
+import io.github.vuhv48.flashsale.role.SubmitRoleRequest;
 import io.github.vuhv48.flashsale.common.api.ErrorStatus;
 import io.github.vuhv48.flashsale.common.exception.DomainException;
 import io.github.vuhv48.flashsale.persistence.entity.OrganizerProfileEntity;
