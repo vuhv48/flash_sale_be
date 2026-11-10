@@ -30,6 +30,9 @@ public class PermissionEntity extends BaseAuditableEntity {
 	@Column(name = "action_code", nullable = false, length = 32)
 	private String actionCode;
 
+	@Column(nullable = false, length = 255)
+	private String name;
+
 	@Column(nullable = false)
 	private boolean enabled = true;
 }

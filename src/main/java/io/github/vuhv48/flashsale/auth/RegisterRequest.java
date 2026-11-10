@@ -12,11 +12,21 @@ public record RegisterRequest(
 				regexp = "^$|^[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]+\\.)+[A-Za-z]{2,}$",
 				message = "Email không đúng định dạng"
 		)
-		String email
+		String email,
+		@Size(max = 255) String fullName,
+		@Size(max = 20)
+		@Pattern(regexp = "^$|^\\+?[0-9]{8,15}$", message = "Số điện thoại không đúng định dạng")
+		String phone
 ) {
 	public RegisterRequest {
 		if (email != null) {
 			email = email.trim();
+		}
+		if (fullName != null) {
+			fullName = fullName.trim();
+		}
+		if (phone != null) {
+			phone = phone.trim();
 		}
 	}
 }

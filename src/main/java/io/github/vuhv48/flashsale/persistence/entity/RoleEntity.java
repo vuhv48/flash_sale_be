@@ -30,6 +30,18 @@ public class RoleEntity extends BaseAuditableEntity {
 	@Column(nullable = false, unique = true, length = 64)
 	private String code;
 
+	@Column(nullable = false, length = 100)
+	private String name;
+
+	@Column(length = 500)
+	private String description;
+
+	@Column(nullable = false)
+	private boolean requestable = false;
+
+	@Column(name = "requires_org_profile", nullable = false)
+	private boolean requiresOrgProfile = false;
+
 	@Column(nullable = false)
 	private boolean enabled = true;
 

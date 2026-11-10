@@ -7,7 +7,12 @@ import java.util.UUID;
 
 public interface AuthAccountService {
 
-	AccessRefreshResult register(String username, String rawPassword, String contactEmail);
+	RegisterOutcome register(
+			String username,
+			String rawPassword,
+			String contactEmail,
+			String fullName,
+			String phone);
 
 	AccessRefreshResult issueTokens(AppUserDetails principal);
 

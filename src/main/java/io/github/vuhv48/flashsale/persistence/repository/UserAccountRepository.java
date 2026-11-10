@@ -17,6 +17,12 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
 	@Query("select case when count(u) > 0 then true else false end from UserAccount u where lower(u.email) = :email")
 	boolean existsByEmail(@Param("email") String email);
 
+	@Query("""
+			select count(distinct u.id) from UserAccount u join u.roles r
+			where r.code = 'ADMIN' and u.isDeleted = false and r.isDeleted = false and r.enabled = true
+			""")
+	long countActiveAdmins();
+
 	@Query("select u from UserAccount u where u.username = :username and u.isDeleted = false")
 	Optional<UserAccount> findByUsername(@Param("username") String username);
 
@@ -95,4 +101,37 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
 					""",
 			nativeQuery = true)
 	List<String> findActiveDirectDeniedPermissionCodesByUserId(@Param("userId") UUID userId);
+
+	@Query(
+			value = """
+					select p.code as "code",
+					       p.name as "name",
+					       p.permission_group as "permissionGroup",
+					       p.action_code as "actionCode",
+					       rp.access_level as "accessLevel"
+					from authz.user_roles ur
+					inner join authz.roles r on r.id = ur.role_id and r.is_deleted = false and r.enabled = true
+					inner join authz.role_permissions rp on rp.role_id = r.id and rp.is_deleted = false
+					inner join authz.permissions p on p.id = rp.permission_id and p.is_deleted = false and p.enabled = true
+					where ur.user_id = :userId
+					  and ur.is_deleted = false
+					""",
+			nativeQuery = true)
+	List<EffectivePermissionRow> findRolePermissionRowsByUserId(@Param("userId") UUID userId);
+
+	@Query(
+			value = """
+					select p.code as "code",
+					       p.name as "name",
+					       p.permission_group as "permissionGroup",
+					       p.action_code as "actionCode",
+					       null as "accessLevel"
+					from authz.user_permissions up
+					inner join authz.permissions p on p.id = up.permission_id and p.is_deleted = false and p.enabled = true
+					where up.user_id = :userId
+					  and up.is_deleted = false
+					  and up.effect_type = 'GRANT'
+					""",
+			nativeQuery = true)
+	List<EffectivePermissionRow> findDirectGrantedPermissionRowsByUserId(@Param("userId") UUID userId);
 }

@@ -23,6 +23,18 @@ public enum ErrorStatus {
 
 	USERNAME_TAKEN(409, "USERNAME_TAKEN", "Tên đăng nhập đã được sử dụng"),
 	EMAIL_TAKEN(409, "EMAIL_TAKEN", "Email đã được sử dụng"),
+	ROLE_NOT_FOUND(404, "ROLE_NOT_FOUND", "Không tìm thấy vai trò"),
+	ROLE_REQUEST_NOT_FOUND(404, "ROLE_REQUEST_NOT_FOUND", "Không tìm thấy yêu cầu vai trò"),
+	ROLE_NOT_REQUESTABLE(409, "ROLE_NOT_REQUESTABLE", "Vai trò này không được phép xin"),
+	ROLE_REQUEST_PENDING(409, "ROLE_REQUEST_PENDING", "Bạn đã có một yêu cầu đang chờ duyệt cho vai trò này."),
+	ROLE_REQUEST_NOT_PENDING(409, "ROLE_REQUEST_NOT_PENDING", "Chỉ xử lý được yêu cầu đang chờ duyệt."),
+	ROLE_ALREADY_ASSIGNED(409, "ROLE_ALREADY_ASSIGNED", "Bạn đã có vai trò này."),
+	ROLE_NOT_ASSIGNED(409, "ROLE_NOT_ASSIGNED", "Bạn chưa có vai trò này."),
+	LAST_ROLE(409, "LAST_ROLE", "Tài khoản phải còn ít nhất một vai trò."),
+	LAST_ADMIN(409, "LAST_ADMIN", "Không gỡ được quản trị viên cuối cùng."),
+	CANNOT_REMOVE_OWN_ADMIN(409, "CANNOT_REMOVE_OWN_ADMIN", "Admin không tự gỡ quyền ADMIN của chính mình."),
+	ORGANIZER_HAS_OPEN_EVENTS(409, "ORGANIZER_HAS_OPEN_EVENTS", "Không duyệt gỡ vai trò ban tổ chức khi còn sự kiện chưa kết thúc."),
+	TAX_CODE_TAKEN(409, "TAX_CODE_TAKEN", "Mã số thuế đã được sử dụng."),
 	DATA_INTEGRITY(409, "DATA_INTEGRITY", "Dữ liệu xung đột ràng buộc (trùng khóa, FK, …)"),
 	ILLEGAL_STATE(409, "ILLEGAL_STATE", "Trạng thái không hợp lệ"),
 

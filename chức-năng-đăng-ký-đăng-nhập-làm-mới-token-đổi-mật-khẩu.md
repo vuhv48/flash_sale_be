@@ -16,13 +16,17 @@ Các lệnh dùng biến Postman `base_url` = `http://localhost:8088`. Trong Pos
 {
   "username": "vuhoang",
   "password": "password123",
-  "email": "vu@example.com"
+  "email": "vu@example.com",
+  "fullName": "Vũ Hoàng",
+  "phone": "0912345678"
 }
 ```
 
-- `username`: bắt buộc, 3–64 ký tự.
+- `username`: bắt buộc, 3–64 ký tự. Đây là tên dùng để đăng nhập.
 - `password`: bắt buộc, 8–128 ký tự.
 - `email`: không bắt buộc, tối đa 320 ký tự. Nếu có thì phải đúng định dạng `ten@tenmien`, ví dụ `vu@example.com`. Sai định dạng: `400 VALIDATION_ERROR`, message `email: Email không đúng định dạng`. Email được lưu vào bảng `users` và không được trùng. Trùng email: `409 EMAIL_TAKEN`.
+- `fullName`, `phone`: không bắt buộc. Số điện thoại nếu có thì 8–15 chữ số, có thể bắt đầu bằng `+`.
+- Form đăng ký không có chọn vai trò.
 
 ```bash
 curl --location '{{base_url}}/api/auth/register' \
@@ -30,7 +34,7 @@ curl --location '{{base_url}}/api/auth/register' \
 --data '{"username":"vuhoang","password":"password123","email":"vu@example.com"}'
 ```
 
-Hệ thống tạo user bật sẵn, `dataScope = OWN`, gán role `USER`, rồi cấp access token và refresh token. Gọi lại đúng username đó thì `409 USERNAME_TAKEN`. Dùng lại đúng lệnh trên.
+Hệ thống tạo user bật sẵn, `dataScope = OWN`, gán role `CUSTOMER`, rồi cấp access token và refresh token. Message là `Đăng ký thành công.` Gọi lại đúng username đó thì `409 USERNAME_TAKEN`. Dùng lại đúng lệnh trên.
 
 ### Đăng nhập
 
@@ -138,6 +142,109 @@ curl --location --request POST '{{base_url}}/api/auth/logout' \
 
 Mọi refresh token đang hoạt động của user bị đánh dấu `revoked = true`. Gọi `/api/auth/refresh` bằng token cũ sẽ nhận `401 REFRESH_TOKEN_INVALID`. Access token đã cấp vẫn dùng được đến khi hết hạn. Thiếu hoặc sai access token: `401`.
 
+### Xin thêm hoặc gỡ vai trò
+
+Đăng ký không chọn vai trò. Người đã đăng nhập tự xin thêm hoặc gỡ mọi vai trò có `requestable = true`. `ADMIN` bị khóa trong database, không xin được. Vai trò chỉ đổi khi Admin duyệt. Tài khoản luôn còn ít nhất một vai trò.
+
+Vai trò được phép xin:
+
+```bash
+curl --location '{{base_url}}/api/roles/requestable' \
+--header 'Authorization: Bearer {{accessToken}}'
+```
+
+Vai trò hiện có:
+
+```bash
+curl --location '{{base_url}}/api/me/roles' \
+--header 'Authorization: Bearer {{accessToken}}'
+```
+
+Quyền hiệu lực của chính user đang đăng nhập, dùng để ẩn hiện chức năng trên giao diện. Quyền lấy từ mọi role đang có, cộng quyền gán thẳng, trừ quyền bị cấm thẳng. Cùng một mã quyền thì giữ mức rộng hơn: `ALL` rộng hơn `OWN`, `OWN` rộng hơn `AUTO`.
+
+```bash
+curl --location '{{base_url}}/api/me/permissions' \
+--header 'Authorization: Bearer {{accessToken}}'
+```
+
+```json
+[
+  {
+    "code": "PER-04",
+    "name": "Xem, sửa hồ sơ; đổi mật khẩu; làm mới token; đăng xuất",
+    "group": "ACCOUNT",
+    "action": "MANAGE_PROFILE",
+    "accessLevel": "OWN"
+  }
+]
+```
+
+Gửi yêu cầu. `organizer` chỉ bắt buộc khi xin thêm vai trò có `requires_org_profile = true`, hiện là `ORGANIZER`.
+
+```bash
+curl --location '{{base_url}}/api/role-requests' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer {{accessToken}}' \
+--data '{"roleCode":"ORGANIZER","action":"ADD","note":"Công ty tổ chức concert","organizer":{"orgName":"Công ty Sự kiện ABC","taxCode":"0101234567","representative":"Vũ Hoàng"}}'
+```
+
+Xin role không được phép: `409 ROLE_NOT_REQUESTABLE`. Đã có yêu cầu chờ cho đúng vai trò đó: `409 ROLE_REQUEST_PENDING`. Xin thêm vai trò đã có: `409 ROLE_ALREADY_ASSIGNED`. Xin gỡ vai trò chưa có: `409 ROLE_NOT_ASSIGNED`. Gỡ vai trò cuối: `409 LAST_ROLE`.
+
+Lịch sử yêu cầu của mình:
+
+```bash
+curl --location '{{base_url}}/api/role-requests/me' \
+--header 'Authorization: Bearer {{accessToken}}'
+```
+
+Hủy khi còn `PENDING`:
+
+```bash
+curl --location --request POST '{{base_url}}/api/role-requests/1/cancel' \
+--header 'Authorization: Bearer {{accessToken}}'
+```
+
+Admin xem danh sách chờ. Có thể lọc thêm `roleCode` và `action`.
+
+```bash
+curl --location '{{base_url}}/api/admin/role-requests?status=PENDING' \
+--header 'Authorization: Bearer {{accessToken}}'
+```
+
+Duyệt thì thêm hoặc gỡ đúng vai trò trong yêu cầu, cùng một transaction. Gỡ `ORGANIZER` khi còn sự kiện chưa kết thúc thì bị chặn.
+
+```bash
+curl --location --request POST '{{base_url}}/api/admin/role-requests/1/approve' \
+--header 'Authorization: Bearer {{accessToken}}'
+```
+
+Từ chối, lý do từ 10 đến 500 ký tự:
+
+```bash
+curl --location --request POST '{{base_url}}/api/admin/role-requests/1/reject' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer {{accessToken}}' \
+--data '{"reason":"Thiếu giấy tờ đăng ký kinh doanh"}'
+```
+
+Admin cấp thẳng, kể cả `ADMIN`:
+
+```bash
+curl --location '{{base_url}}/api/admin/users/<userId>/roles' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer {{accessToken}}' \
+--data '{"roleCode":"ADMIN","reason":"Cấp quyền quản trị"}'
+```
+
+Admin gỡ thẳng. Không tự gỡ `ADMIN` của mình và không gỡ admin cuối cùng.
+
+```bash
+curl --location --request DELETE '{{base_url}}/api/admin/users/<userId>/roles/ORGANIZER' \
+--header 'Authorization: Bearer {{accessToken}}'
+```
+
+Gỡ vai trò thì thu hồi refresh token ngay. Thêm vai trò thì request tiếp theo đã đọc role mới từ database.
+
 ### Phản hồi token
 
 Đăng ký, đăng nhập và refresh trả cùng một dạng:
@@ -194,7 +301,19 @@ Lỗi được trả về dạng:
 | `USER_NOT_FOUND` | 404 | Không tìm thấy user |
 | `USERNAME_TAKEN` | 409 | Username đã có |
 | `EMAIL_TAKEN` | 409 | Email đã có |
-| `ILLEGAL_STATE` | 409 | Thiếu role `USER` trong database |
+| `ROLE_NOT_REQUESTABLE` | 409 | Vai trò không được phép xin, kể cả `ADMIN` |
+| `ROLE_REQUEST_PENDING` | 409 | Đã có yêu cầu chờ cho đúng vai trò này |
+| `ROLE_REQUEST_NOT_PENDING` | 409 | Yêu cầu không còn chờ duyệt |
+| `ROLE_ALREADY_ASSIGNED` | 409 | Xin thêm vai trò đang có |
+| `ROLE_NOT_ASSIGNED` | 409 | Xin gỡ vai trò chưa có |
+| `LAST_ROLE` | 409 | Gỡ vai trò cuối cùng |
+| `LAST_ADMIN` | 409 | Gỡ quản trị viên cuối cùng |
+| `CANNOT_REMOVE_OWN_ADMIN` | 409 | Admin tự gỡ `ADMIN` của mình |
+| `ORGANIZER_HAS_OPEN_EVENTS` | 409 | Gỡ `ORGANIZER` khi còn sự kiện chưa kết thúc |
+| `ROLE_REQUEST_NOT_FOUND` | 404 | Không tìm thấy yêu cầu |
+| `ROLE_NOT_FOUND` | 404 | Không tìm thấy vai trò |
+| `TAX_CODE_TAKEN` | 409 | Mã số thuế đã có |
+| `ILLEGAL_STATE` | 409 | Thiếu role cần dùng trong database, hoặc không cấp được quyền |
 | `DATA_INTEGRITY` | 409 | Trùng khóa hoặc vi phạm ràng buộc |
 | `INTERNAL_ERROR` | 500 | Lỗi hệ thống |
 
@@ -220,25 +339,30 @@ Flyway tạo schema khi ứng dụng khởi động (`ddl-auto: validate`).
 
 | Bảng | Nội dung |
 | --- | --- |
-| `users` | Tài khoản: username, email (unique, được phép trống), mật khẩu BCrypt, enabled, data scope |
-| `authz.roles` | Role |
+| `users` | Tài khoản: username, email (unique, được phép trống), họ tên, số điện thoại, mật khẩu BCrypt, enabled, data scope |
+| `authz.roles` | Danh mục vai trò: mã, tên, `requestable`, `requires_org_profile`. `ADMIN` không được bật `requestable` |
 | `authz.permissions` | Quyền |
-| `authz.user_roles` | User thuộc role nào |
+| `authz.user_roles` | User có những role nào. Một tài khoản có thể có nhiều role, ví dụ `CUSTOMER` và `ORGANIZER` |
 | `authz.role_permissions` | Role có quyền nào |
 | `authz.user_permissions` | Quyền gán thẳng cho user (`GRANT` / `DENY`) |
 | `authz.admin_login_logs` | Lịch sử đăng nhập |
 | `refresh_tokens` | Bản băm refresh token, hạn, đã thu hồi hay chưa |
+| `role_requests` | Yêu cầu thêm hoặc gỡ mọi vai trò: `ADD` / `REMOVE`, trạng thái `PENDING` / `APPROVED` / `REJECTED` / `CANCELLED`. Mỗi user một yêu cầu `PENDING` cho mỗi vai trò |
+| `organizer_profiles` | Hồ sơ đơn vị, một dòng cho một user: tên đơn vị, mã số thuế, người đại diện |
+| `authz.role_change_logs` | Nhật ký mỗi lần thêm hoặc gỡ vai trò, qua yêu cầu hoặc Admin cấp thẳng |
 
 Dữ liệu sẵn sau migration:
 
 | Username | Mật khẩu | Role | Data scope | Quyền |
 | --- | --- | --- | --- | --- |
-| `admin` | `password` | `ADMIN` | `ALL` | `ADMIN_ACCESS`, `USER_PROFILE_READ` |
-| `user` | `password` | `USER` | `OWN` | `USER_PROFILE_READ` |
+| `admin` | `password` | `ADMIN` | `ALL` | Theo ma trận BRD 02 |
+| `user` | `password` | `CUSTOMER` | `OWN` | Theo ma trận BRD 02 |
 
-User tự đăng ký nhận role `USER` và data scope `OWN`.
+User tự đăng ký nhận role `CUSTOMER` và data scope `OWN`. Muốn thêm hoặc gỡ vai trò khác thì gửi yêu cầu, Admin duyệt. `ADMIN` chỉ được Admin cấp thẳng.
 
-`V2` còn thêm: quyền `USER_PROFILE_READ` gán thẳng cho user `user`, một dòng log đăng nhập mẫu của `admin`, và một refresh token dev cho `admin` (raw token `dev-test-refresh-token-001`, hạn 7 ngày kể từ lúc migration chạy).
+Role trong hệ thống: `GUEST`, `CUSTOMER`, `ORGANIZER`, `ADMIN`, `SYSTEM`. Quyền là `PER-01` đến `PER-65`. `Có` lưu `ALL`, `Riêng` lưu `OWN`, `Auto` lưu `AUTO`. Ô không được phép không có dòng trong `authz.role_permissions`.
+
+`V2` còn một dòng log đăng nhập mẫu của `admin` và một refresh token dev cho `admin` (raw token `dev-test-refresh-token-001`, hạn 7 ngày kể từ lúc migration chạy). `V5` đã xóa quyền gán thẳng `USER_PROFILE_READ`.
 
 ## Cấu hình mặc định
 

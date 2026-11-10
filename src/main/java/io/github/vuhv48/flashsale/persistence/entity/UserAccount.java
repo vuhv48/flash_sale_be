@@ -33,6 +33,12 @@ public class UserAccount extends BaseAuditableEntity {
 	@Column(unique = true, length = 320)
 	private String email;
 
+	@Column(name = "full_name", length = 255)
+	private String fullName;
+
+	@Column(length = 20)
+	private String phone;
+
 	@Column(name = "password_hash", nullable = false)
 	private String passwordHash;
 

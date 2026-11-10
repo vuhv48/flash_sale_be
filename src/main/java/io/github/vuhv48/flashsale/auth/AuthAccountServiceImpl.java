@@ -33,7 +33,7 @@ import java.util.UUID;
 public class AuthAccountServiceImpl implements AuthAccountService {
 
 	private static final SecureRandom RANDOM = new SecureRandom();
-	private static final String DEFAULT_SELF_REGISTER_ROLE = "USER";
+	private static final String DEFAULT_SELF_REGISTER_ROLE = "CUSTOMER";
 
 	private final JwtService jwtService;
 	private final JwtProperties jwtProperties;
@@ -47,7 +47,13 @@ public class AuthAccountServiceImpl implements AuthAccountService {
 
 	@Override
 	@Transactional
-	public AccessRefreshResult register(String username, String rawPassword, String contactEmail) {
+	public RegisterOutcome register(
+			String username,
+			String rawPassword,
+			String contactEmail,
+			String fullName,
+			String phone
+	) {
 		String u = username.trim();
 		if (u.isEmpty()) {
 			throw new DomainException(ErrorStatus.VALIDATION_ERROR, "Tên đăng nhập không hợp lệ");
@@ -62,10 +68,12 @@ public class AuthAccountServiceImpl implements AuthAccountService {
 		RoleEntity userRole = roleEntityRepository.findByCodeAndIsDeletedFalseAndEnabledTrue(DEFAULT_SELF_REGISTER_ROLE)
 				.orElseThrow(() -> new DomainException(
 						ErrorStatus.ILLEGAL_STATE,
-						"Chưa cấu hình role USER trong CSDL. Chạy migration Flyway."));
+						"Chưa cấu hình role CUSTOMER trong CSDL. Chạy migration Flyway."));
 		UserAccount acc = new UserAccount();
 		acc.setUsername(u);
 		acc.setEmail(email);
+		acc.setFullName(blankToNull(fullName));
+		acc.setPhone(blankToNull(phone));
 		acc.setPasswordHash(passwordEncoder.encode(rawPassword));
 		acc.setEnabled(true);
 		acc.setDataScope("OWN");
@@ -75,7 +83,7 @@ public class AuthAccountServiceImpl implements AuthAccountService {
 		registerWelcomeMailService.enqueueAdminNewUserNotification(acc.getId(), u, email);
 		var snap = loadUserForSecurity.loadByUsername(u)
 				.orElseThrow(() -> new DomainException(ErrorStatus.INTERNAL_ERROR, ErrorStatus.INTERNAL_ERROR.defaultMessage()));
-		return issueTokens(new AppUserDetails(snap));
+		return new RegisterOutcome(issueTokens(new AppUserDetails(snap)), "Đăng ký thành công.");
 	}
 
 	private static String normalizeEmail(String contactEmail) {
@@ -83,6 +91,13 @@ public class AuthAccountServiceImpl implements AuthAccountService {
 			return null;
 		}
 		return contactEmail.trim().toLowerCase();
+	}
+
+	private static String blankToNull(String value) {
+		if (value == null || value.isBlank()) {
+			return null;
+		}
+		return value.trim();
 	}
 
 	@Override

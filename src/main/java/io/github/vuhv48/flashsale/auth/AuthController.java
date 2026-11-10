@@ -26,9 +26,21 @@ public class AuthController {
 	private final LoginRateLimitService loginRateLimitService;
 
 	@PostMapping("/register")
-	public ResponseEntity<LoginResponse> register(@Valid @RequestBody RegisterRequest body) {
-		var tokens = authAccountService.register(body.username(), body.password(), body.email());
-		return ResponseEntity.status(HttpStatus.CREATED).body(toLoginResponse(tokens));
+	public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest body) {
+		var result = authAccountService.register(
+				body.username(),
+				body.password(),
+				body.email(),
+				body.fullName(),
+				body.phone());
+		var tokens = result.tokens();
+		return ResponseEntity.status(HttpStatus.CREATED).body(new RegisterResponse(
+				result.message(),
+				tokens.accessToken(),
+				tokens.refreshToken(),
+				"Bearer",
+				tokens.accessExpiresInSeconds(),
+				tokens.refreshExpiresInSeconds()));
 	}
 
 	@PostMapping("/login")
