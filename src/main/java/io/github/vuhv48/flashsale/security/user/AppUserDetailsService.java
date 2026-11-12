@@ -15,8 +15,10 @@ public class AppUserDetailsService implements UserDetailsService {
 
 	@Override
 	public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-		return loadUserForSecurity.loadByUsername(username)
-				.map(AppUserDetails::new)
+		var loaded = username != null && username.contains("@")
+				? loadUserForSecurity.loadByEmail(username.trim().toLowerCase())
+				: loadUserForSecurity.loadByUsername(username);
+		return loaded.map(AppUserDetails::new)
 				.orElseThrow(() -> new UsernameNotFoundException("User not found"));
 	}
 }

@@ -2,12 +2,14 @@ package io.github.vuhv48.flashsale.controller;
 
 import io.github.vuhv48.flashsale.auth.AccessRefreshResult;
 import io.github.vuhv48.flashsale.auth.ChangePasswordRequest;
+import io.github.vuhv48.flashsale.auth.ForgotPasswordRequest;
 import io.github.vuhv48.flashsale.auth.LoginRequest;
 import io.github.vuhv48.flashsale.auth.LoginResponse;
 import io.github.vuhv48.flashsale.auth.MessageResponse;
 import io.github.vuhv48.flashsale.auth.RefreshTokenRequest;
 import io.github.vuhv48.flashsale.auth.RegisterRequest;
 import io.github.vuhv48.flashsale.auth.RegisterResponse;
+import io.github.vuhv48.flashsale.auth.ResetPasswordRequest;
 import io.github.vuhv48.flashsale.common.api.ErrorStatus;
 import io.github.vuhv48.flashsale.common.exception.DomainException;
 import io.github.vuhv48.flashsale.security.user.AppUserDetails;
@@ -26,8 +28,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -40,35 +40,32 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AuthController {
 
-	private final AuthenticationManager authenticationManager;
 	private final AuthAccountService authAccountService;
 	private final LoginRateLimitService loginRateLimitService;
 
 	@SecurityRequirements
 	@Operation(
 			summary = "Đăng ký tài khoản",
-			description = "Tạo tài khoản mới và tự gán vai trò CUSTOMER. Không chọn vai trò trên form. "
-					+ "Trả về thông báo cùng access token và refresh token."
+			description = "Tạo tài khoản bằng email, mật khẩu, họ tên và số điện thoại. Tự gán vai trò CUSTOMER. "
+					+ "Phải đồng ý điều khoản. Không chọn vai trò trên form."
 	)
 	@ApiResponse(responseCode = "201", description = "Đăng ký thành công",
 			content = @Content(schema = @Schema(implementation = RegisterResponse.class), examples = @ExampleObject(value = """
 					{
 					  "message": "Đăng ký thành công.",
-					  "accessToken": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ2dWhvYW5nIn0.demo",
+					  "accessToken": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ2dUBleGFtcGxlLmNvbSJ9.demo",
 					  "refreshToken": "dGhpcy1pcy1hLWRlbW8tcmVmcmVzaC10b2tlbg",
 					  "tokenType": "Bearer",
-					  "expiresInSeconds": 86400,
+					  "expiresInSeconds": 900,
 					  "refreshExpiresInSeconds": 604800
 					}
 					""")))
 	@PostMapping("/register")
-	public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest body) {
-		var result = authAccountService.register(
-				body.username(),
-				body.password(),
-				body.email(),
-				body.fullName(),
-				body.phone());
+	public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest body, HttpServletRequest request) {
+		if (!loginRateLimitService.allowRegisterAttempt(resolveClientIp(request))) {
+			throw new DomainException(ErrorStatus.TOO_MANY_REQUESTS, "Bạn đã đăng ký quá 5 lần trong 1 giờ. Vui lòng thử lại sau.");
+		}
+		var result = authAccountService.register(body.email(), body.password(), body.fullName(), body.phone());
 		var tokens = result.tokens();
 		return ResponseEntity.status(HttpStatus.CREATED).body(new RegisterResponse(
 				result.message(),
@@ -82,39 +79,39 @@ public class AuthController {
 	@SecurityRequirements
 	@Operation(
 			summary = "Đăng nhập",
-			description = "Đăng nhập bằng username và mật khẩu. Đúng thì cấp cặp token mới và thu hồi refresh token cũ. "
-					+ "Sai quá 5 lần trong 1 phút từ cùng một IP thì bị chặn."
+			description = "Đăng nhập bằng email và mật khẩu. Đúng thì cấp access token 15 phút và refresh token 7 ngày. "
+					+ "Sai 5 lần liên tiếp thì khóa đăng nhập 15 phút. Mỗi IP tối đa 20 lần trong 1 phút."
 	)
 	@ApiResponse(responseCode = "200", description = "Đăng nhập thành công",
 			content = @Content(schema = @Schema(implementation = LoginResponse.class), examples = @ExampleObject(value = """
 					{
-					  "accessToken": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ2dWhvYW5nIn0.demo",
+					  "accessToken": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ2dUBleGFtcGxlLmNvbSJ9.demo",
 					  "refreshToken": "dGhpcy1pcy1hLWRlbW8tcmVmcmVzaC10b2tlbg",
 					  "tokenType": "Bearer",
-					  "expiresInSeconds": 86400,
+					  "expiresInSeconds": 900,
 					  "refreshExpiresInSeconds": 604800
 					}
 					""")))
 	@PostMapping("/login")
 	public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest body, HttpServletRequest request) {
 		String clientIp = resolveClientIp(request);
-		if (!loginRateLimitService.isAllowed(clientIp)) {
-			throw new DomainException(
-					ErrorStatus.TOO_MANY_REQUESTS,
-					"Bạn đã vượt quá 5 lần đăng nhập trong 1 phút từ IP: " + clientIp
-			);
+		if (!loginRateLimitService.allowLoginAttempt(clientIp)) {
+			throw new DomainException(ErrorStatus.TOO_MANY_REQUESTS, "Bạn đã vượt quá 20 lần đăng nhập trong 1 phút.");
 		}
-		var auth = authenticationManager.authenticate(
-				UsernamePasswordAuthenticationToken.unauthenticated(body.username(), body.password()));
-		var principal = (AppUserDetails) auth.getPrincipal();
-		var tokens = authAccountService.issueTokens(principal);
-		loginRateLimitService.clear(clientIp);
-		authAccountService.recordAdminLoginSuccess(
-				principal.getId(),
-				principal.getUsername(),
-				request.getRemoteAddr(),
-				request.getHeader("User-Agent"));
-		return ResponseEntity.ok(toLoginResponse(tokens));
+		if (loginRateLimitService.isLoginLocked(body.email())) {
+			throw new DomainException(ErrorStatus.LOGIN_LOCKED, ErrorStatus.LOGIN_LOCKED.defaultMessage());
+		}
+		try {
+			var tokens = authAccountService.login(
+					body.email(), body.password(), request.getRemoteAddr(), request.getHeader("User-Agent"));
+			loginRateLimitService.clearLoginFailures(body.email());
+			return ResponseEntity.ok(toLoginResponse(tokens));
+		} catch (DomainException ex) {
+			if (ErrorStatus.AUTH_FAILED.code().equals(ex.getCode())) {
+				loginRateLimitService.recordLoginFailure(body.email());
+			}
+			throw ex;
+		}
 	}
 
 	@SecurityRequirements
@@ -128,7 +125,7 @@ public class AuthController {
 					  "accessToken": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ2dWhvYW5nIn0.demo",
 					  "refreshToken": "bmV3LXJlZnJlc2gtdG9rZW4tZGVtbw",
 					  "tokenType": "Bearer",
-					  "expiresInSeconds": 86400,
+					  "expiresInSeconds": 900,
 					  "refreshExpiresInSeconds": 604800
 					}
 					""")))
@@ -151,6 +148,31 @@ public class AuthController {
 	) {
 		authAccountService.logout(principal.getId());
 		return ResponseEntity.ok(new MessageResponse("Đăng xuất thành công"));
+	}
+
+	@SecurityRequirements
+	@Operation(
+			summary = "Quên mật khẩu",
+			description = "Gửi mã đặt lại mật khẩu hiệu lực 30 phút tới email. Email không tồn tại vẫn trả cùng một câu, để không lộ tài khoản."
+	)
+	@ApiResponse(responseCode = "200", description = "Đã tiếp nhận",
+			content = @Content(schema = @Schema(implementation = MessageResponse.class),
+					examples = @ExampleObject(value = "{\"message\":\"Nếu email tồn tại, hướng dẫn đặt lại mật khẩu đã được gửi.\"}")))
+	@PostMapping("/forgot-password")
+	public MessageResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest body) {
+		authAccountService.requestPasswordReset(body.email());
+		return new MessageResponse("Nếu email tồn tại, hướng dẫn đặt lại mật khẩu đã được gửi.");
+	}
+
+	@SecurityRequirements
+	@Operation(summary = "Đặt lại mật khẩu", description = "Dùng mã còn hạn để đặt mật khẩu mới và thu hồi mọi refresh token.")
+	@ApiResponse(responseCode = "200", description = "Đã đặt lại",
+			content = @Content(schema = @Schema(implementation = MessageResponse.class),
+					examples = @ExampleObject(value = "{\"message\":\"Đặt lại mật khẩu thành công.\"}")))
+	@PostMapping("/reset-password")
+	public MessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest body) {
+		authAccountService.resetPassword(body.token(), body.newPassword());
+		return new MessageResponse("Đặt lại mật khẩu thành công.");
 	}
 
 	@Operation(

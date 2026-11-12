@@ -8,7 +8,8 @@ import java.util.stream.Collectors;
 
 public enum ErrorStatus {
 
-	AUTH_FAILED(401, "AUTH_FAILED", "Đăng nhập thất bại"),
+	AUTH_FAILED(401, "AUTH_FAILED", "Email hoặc mật khẩu không đúng."),
+	LOGIN_LOCKED(429, "LOGIN_LOCKED", "Bạn đã nhập sai quá 5 lần. Vui lòng thử lại sau 15 phút."),
 	UNAUTHORIZED(401, "UNAUTHORIZED", "Chưa xác thực"),
 	REFRESH_TOKEN_INVALID(401, "REFRESH_TOKEN_INVALID", "Refresh token không hợp lệ hoặc đã hết hạn"),
 	FORBIDDEN(403, "FORBIDDEN", "Không đủ quyền"),
@@ -19,10 +20,13 @@ public enum ErrorStatus {
 	INVALID_ARGUMENT(400, "INVALID_ARGUMENT", "Tham số không hợp lệ"),
 	PASSWORD_MISMATCH(400, "PASSWORD_MISMATCH", "Mật khẩu hiện tại không đúng"),
 	USER_NOT_FOUND(404, "USER_NOT_FOUND", "Không tìm thấy người dùng"),
-	ACCOUNT_DISABLED(403, "ACCOUNT_DISABLED", "Tài khoản đã bị khóa"),
+	ACCOUNT_DISABLED(403, "ACCOUNT_DISABLED", "Tài khoản đã bị khóa. Liên hệ hỗ trợ qua mục Chat để biết thêm."),
 
 	USERNAME_TAKEN(409, "USERNAME_TAKEN", "Tên đăng nhập đã được sử dụng"),
-	EMAIL_TAKEN(409, "EMAIL_TAKEN", "Email đã được sử dụng"),
+	EMAIL_TAKEN(409, "EMAIL_TAKEN", "Email đã được sử dụng."),
+	PHONE_TAKEN(409, "PHONE_TAKEN", "Số điện thoại đã được sử dụng."),
+	RESET_TOKEN_INVALID(400, "RESET_TOKEN_INVALID", "Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn."),
+	CANNOT_LOCK_SELF(409, "CANNOT_LOCK_SELF", "Admin không được tự khóa tài khoản của chính mình."),
 	ROLE_NOT_FOUND(404, "ROLE_NOT_FOUND", "Không tìm thấy vai trò"),
 	ROLE_REQUEST_NOT_FOUND(404, "ROLE_REQUEST_NOT_FOUND", "Không tìm thấy yêu cầu vai trò"),
 	ROLE_NOT_REQUESTABLE(409, "ROLE_NOT_REQUESTABLE", "Vai trò này không được phép xin"),

@@ -2,6 +2,7 @@ package io.github.vuhv48.flashsale.service;
 
 import io.github.vuhv48.flashsale.auth.AccessRefreshResult;
 import io.github.vuhv48.flashsale.auth.AdminUserSearchResponse;
+import io.github.vuhv48.flashsale.auth.ProfileResponse;
 import io.github.vuhv48.flashsale.auth.RegisterOutcome;
 import io.github.vuhv48.flashsale.security.user.AppUserDetails;
 
@@ -10,12 +11,9 @@ import java.util.UUID;
 
 public interface AuthAccountService {
 
-	RegisterOutcome register(
-			String username,
-			String rawPassword,
-			String contactEmail,
-			String fullName,
-			String phone);
+	RegisterOutcome register(String email, String rawPassword, String fullName, String phone);
+
+	AccessRefreshResult login(String email, String rawPassword, String ipAddress, String userAgent);
 
 	AccessRefreshResult issueTokens(AppUserDetails principal);
 
@@ -25,9 +23,19 @@ public interface AuthAccountService {
 
 	void logout(UUID userId);
 
-	void setUserEnabledByUsername(String username, boolean enabled);
+	ProfileResponse profile(UUID userId);
 
-	List<AdminUserSearchResponse> searchUsersByName(String name);
+	ProfileResponse updateProfile(UUID userId, String fullName, String phone);
+
+	void requestPasswordReset(String email);
+
+	void resetPassword(String rawToken, String newPassword);
+
+	void lockAccount(UUID actorId, String username, String reason);
+
+	void unlockAccount(UUID actorId, String username, String reason);
+
+	List<AdminUserSearchResponse> searchUsers(String name);
 
 	void recordAdminLoginSuccess(UUID userId, String username, String ipAddress, String userAgent);
 }

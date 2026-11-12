@@ -2,7 +2,7 @@
 
 Ứng dụng Spring Boot, package `io.github.vuhv48.flashsale`. Phần đang chạy là **đăng nhập / đăng ký / phiên làm việc**. Chưa có API sản phẩm, giỏ hàng, đơn flash sale.
 
-Các API công khai (không cần token): `POST /api/auth/login`, `POST /api/auth/register`, `POST /api/auth/refresh`, `GET /actuator/health`, cùng trang Swagger. Mọi API còn lại phải gửi `Authorization: Bearer {{accessToken}}`.
+Các API công khai (không cần token): `POST /api/auth/login`, `POST /api/auth/register`, `POST /api/auth/refresh`, `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`, `GET /actuator/health`, cùng trang Swagger. Mọi API còn lại phải gửi `Authorization: Bearer {{accessToken}}`.
 
 Swagger UI: [http://localhost:8088/swagger-ui.html](http://localhost:8088/swagger-ui.html). Mô tả OpenAPI nằm ở `/v3/api-docs`. Bấm **Authorize**, dán access token (không cần chữ `Bearer `) rồi thử các API cần đăng nhập.
 
@@ -16,27 +16,29 @@ Các lệnh dùng biến Postman `base_url` = `http://localhost:8088`. Trong Pos
 
 ```json
 {
-  "username": "vuhoang",
-  "password": "password123",
   "email": "vu@example.com",
+  "password": "MatKhau123",
+  "confirmPassword": "MatKhau123",
   "fullName": "Vũ Hoàng",
-  "phone": "0912345678"
+  "phone": "0912345678",
+  "acceptedTerms": true
 }
 ```
 
-- `username`: bắt buộc, 3–64 ký tự. Đây là tên dùng để đăng nhập.
-- `password`: bắt buộc, 8–128 ký tự.
-- `email`: không bắt buộc, tối đa 320 ký tự. Nếu có thì phải đúng định dạng `ten@tenmien`, ví dụ `vu@example.com`. Sai định dạng: `400 VALIDATION_ERROR`, message `email: Email không đúng định dạng`. Email được lưu vào bảng `users` và không được trùng. Trùng email: `409 EMAIL_TAKEN`.
-- `fullName`, `phone`: không bắt buộc. Số điện thoại nếu có thì 8–15 chữ số, có thể bắt đầu bằng `+`.
-- Form đăng ký không có chọn vai trò.
+- `email`: bắt buộc, tối đa 254 ký tự, đúng định dạng email. Hệ thống lưu chữ thường. Username của tài khoản mới chính là email này. Trùng email, không phân biệt hoa thường, với tài khoản chưa xóa: `409 EMAIL_TAKEN`, message `Email đã được sử dụng.`
+- `password` và `confirmPassword`: bắt buộc, 8–64 ký tự, có chữ hoa, chữ thường và số, không được trùng email. Hai ô phải khớp. Thiếu một trong các điều kiện: `400 VALIDATION_ERROR`.
+- `fullName`: bắt buộc, 2–100 ký tự.
+- `phone`: bắt buộc, đúng `0` rồi 9 chữ số, ví dụ `0912345678`. Trùng số với tài khoản chưa xóa: `409 PHONE_TAKEN`.
+- `acceptedTerms`: phải là `true`.
+- Form không có chọn vai trò.
 
 ```bash
 curl --location '{{base_url}}/api/auth/register' \
 --header 'Content-Type: application/json' \
---data '{"username":"vuhoang","password":"password123","email":"vu@example.com"}'
+--data '{"email":"vu@example.com","password":"MatKhau123","confirmPassword":"MatKhau123","fullName":"Vũ Hoàng","phone":"0912345678","acceptedTerms":true}'
 ```
 
-Hệ thống tạo user bật sẵn, `dataScope = OWN`, gán role `CUSTOMER`, rồi cấp access token và refresh token. Message là `Đăng ký thành công.` Gọi lại đúng username đó thì `409 USERNAME_TAKEN`. Dùng lại đúng lệnh trên.
+Hệ thống tạo user bật sẵn, `dataScope = OWN`, gán role `CUSTOMER`, rồi cấp access token và refresh token. Message là `Đăng ký thành công.` Mỗi IP tối đa **5 lần đăng ký trong 1 giờ**. Vượt ngưỡng: `429 TOO_MANY_REQUESTS`. Redis không chạy thì giới hạn được bỏ qua.
 
 ### Đăng nhập
 
@@ -44,7 +46,7 @@ Hệ thống tạo user bật sẵn, `dataScope = OWN`, gán role `CUSTOMER`, r�
 
 ```json
 {
-  "username": "admin",
+  "email": "admin@example.com",
   "password": "password"
 }
 ```
@@ -52,18 +54,20 @@ Hệ thống tạo user bật sẵn, `dataScope = OWN`, gán role `CUSTOMER`, r�
 ```bash
 curl --location '{{base_url}}/api/auth/login' \
 --header 'Content-Type: application/json' \
---data '{"username":"admin","password":"password"}'
+--data '{"email":"admin@example.com","password":"password"}'
 ```
 
-Sai mật khẩu: `401 AUTH_FAILED`. Tài khoản bị khóa: `403 ACCOUNT_DISABLED`.
+Sai email hoặc sai mật khẩu: `401 AUTH_FAILED`, message `Email hoặc mật khẩu không đúng.` Tài khoản bị Admin khóa: `403 ACCOUNT_DISABLED`, message `Tài khoản đã bị khóa. Liên hệ hỗ trợ qua mục Chat để biết thêm.`
 
 ```bash
 curl --location '{{base_url}}/api/auth/login' \
 --header 'Content-Type: application/json' \
---data '{"username":"admin","password":"sai-mat-khau"}'
+--data '{"email":"admin@example.com","password":"sai-mat-khau"}'
 ```
 
-Mỗi IP được tối đa **5 lần trong 1 phút** (đếm theo `X-Forwarded-For`, rồi `X-Real-IP`, rồi địa chỉ kết nối). Vượt ngưỡng: `429 TOO_MANY_REQUESTS`. Đăng nhập thành công thì xóa bộ đếm của IP đó. Redis không chạy thì giới hạn được bỏ qua và cho đăng nhập.
+Mỗi IP được tối đa **20 lần trong 1 phút** (đếm theo `X-Forwarded-For`, rồi `X-Real-IP`, rồi địa chỉ kết nối). Vượt ngưỡng: `429 TOO_MANY_REQUESTS`. Bộ đếm IP không xóa khi đăng nhập đúng. Redis không chạy thì giới hạn được bỏ qua.
+
+Sai mật khẩu **5 lần liên tiếp** trên cùng một email thì lần thứ 6 bị khóa 15 phút, kể cả khi mật khẩu lần đó đúng: `429 LOGIN_LOCKED`, message `Bạn đã nhập sai quá 5 lần. Vui lòng thử lại sau 15 phút.` Lần thứ 5 vẫn trả `AUTH_FAILED`. Đăng nhập đúng trước khi đủ 5 lần thì xóa bộ đếm sai của email đó.
 
 Mỗi lần đăng nhập thành công ghi một dòng vào `authz.admin_login_logs` (user, username, IP, User-Agent, thời điểm).
 
@@ -105,8 +109,8 @@ Token cũ bị thu hồi, hệ thống cấp cặp token mới. Token sai, đã 
 
 ```json
 {
-  "currentPassword": "password123",
-  "newPassword": "password456"
+  "currentPassword": "MatKhau123",
+  "newPassword": "MatKhauMoi1"
 }
 ```
 
@@ -114,7 +118,7 @@ Token cũ bị thu hồi, hệ thống cấp cặp token mới. Token sai, đã 
 curl --location '{{base_url}}/api/auth/change-password' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer {{accessToken}}' \
---data '{"currentPassword":"password123","newPassword":"password456"}'
+--data '{"currentPassword":"MatKhau123","newPassword":"MatKhauMoi1"}'
 ```
 
 Thiếu hoặc sai access token thì `401 UNAUTHORIZED`:
@@ -122,10 +126,98 @@ Thiếu hoặc sai access token thì `401 UNAUTHORIZED`:
 ```bash
 curl --location '{{base_url}}/api/auth/change-password' \
 --header 'Content-Type: application/json' \
---data '{"currentPassword":"password123","newPassword":"password456"}'
+--data '{"currentPassword":"MatKhau123","newPassword":"MatKhauMoi1"}'
 ```
 
-`newPassword` dài 8–128 ký tự. Mật khẩu hiện tại sai: `400 PASSWORD_MISMATCH`. Đổi xong, mọi refresh token đang hoạt động của user bị đánh dấu `revoked = true`. Dòng không bị xóa khỏi bảng `refresh_tokens`.
+`newPassword` dài 8–64 ký tự, có chữ hoa, chữ thường và số, không trùng email. Mật khẩu hiện tại sai: `400 PASSWORD_MISMATCH`. Đổi xong, mọi refresh token đang hoạt động của user bị đánh dấu `revoked = true`. Dòng không bị xóa khỏi bảng `refresh_tokens`.
+
+### Quên mật khẩu
+
+`POST /api/auth/forgot-password` — không cần token. Luôn trả `200` cùng một câu, dù email có hay không:
+
+```json
+{
+  "message": "Nếu email tồn tại, hướng dẫn đặt lại mật khẩu đã được gửi."
+}
+```
+
+```bash
+curl --location '{{base_url}}/api/auth/forgot-password' \
+--header 'Content-Type: application/json' \
+--data '{"email":"vu@example.com"}'
+```
+
+Email tồn tại và tài khoản đang bật thì hệ thống tạo mã hiệu lực **30 phút**, lưu bản băm SHA-256, và gửi mã tới email. Chưa cấu hình SMTP thì mã được ghi vào log, không trả trong HTTP.
+
+`POST /api/auth/reset-password` — không cần token. Thành công trả `200`:
+
+```json
+{
+  "message": "Đặt lại mật khẩu thành công."
+}
+```
+
+```bash
+curl --location '{{base_url}}/api/auth/reset-password' \
+--header 'Content-Type: application/json' \
+--data '{"token":"<mã trong mail hoặc log>","newPassword":"MatKhauMoi1"}'
+```
+
+Mã sai, đã dùng, hoặc hết hạn: `400 RESET_TOKEN_INVALID`. Mật khẩu mới theo cùng quy tắc đăng ký. Đặt lại xong, mọi refresh token đang hoạt động bị thu hồi.
+
+### Hồ sơ
+
+`GET /api/me/profile` và `PUT /api/me/profile` — bắt buộc access token và quyền `PER-04`. Email không đổi.
+
+```bash
+curl --location '{{base_url}}/api/me/profile' \
+--header 'Authorization: Bearer {{accessToken}}'
+```
+
+```bash
+curl --location --request PUT '{{base_url}}/api/me/profile' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer {{accessToken}}' \
+--data '{"fullName":"Vũ Hoàng","phone":"0987654321"}'
+```
+
+```json
+{
+  "email": "vu@example.com",
+  "fullName": "Vũ Hoàng",
+  "phone": "0987654321",
+  "enabled": true
+}
+```
+
+Số điện thoại trùng tài khoản khác chưa xóa: `409 PHONE_TAKEN`.
+
+### Khóa tài khoản
+
+Admin có `PER-05` xem tối đa 20 tài khoản chưa xóa. Bỏ trống `name` thì lấy 20 tài khoản đầu. Có `name` thì lọc theo email, username hoặc họ tên.
+
+```bash
+curl --location '{{base_url}}/api/admin/users?name=vu' \
+--header 'Authorization: Bearer {{accessToken}}'
+```
+
+Admin có `PER-07` khóa hoặc mở khóa. Username của tài khoản đăng ký mới trùng email. Bắt buộc có lý do. Admin không tự khóa mình: `409 CANNOT_LOCK_SELF`.
+
+```bash
+curl --location '{{base_url}}/api/admin/users/vu@example.com/lock' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer {{accessToken}}' \
+--data '{"reason":"Vi phạm điều khoản sử dụng nhiều lần"}'
+```
+
+```bash
+curl --location '{{base_url}}/api/admin/users/vu@example.com/unlock' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer {{accessToken}}' \
+--data '{"reason":"Đã xử lý xong"}'
+```
+
+Khóa thì `enabled = false`, thu hồi refresh token, ghi `authz.account_lock_logs`. Request tiếp theo của tài khoản đó nhận `401`. Mở khóa thì `enabled = true`.
 
 ### Đăng xuất
 
@@ -146,7 +238,7 @@ Mọi refresh token đang hoạt động của user bị đánh dấu `revoked =
 
 ### Xin thêm hoặc gỡ vai trò
 
-Đăng ký không chọn vai trò. Người đã đăng nhập tự xin thêm hoặc gỡ mọi vai trò có `requestable = true`. `ADMIN` bị khóa trong database, không xin được. Vai trò chỉ đổi khi Admin duyệt. Tài khoản luôn còn ít nhất một vai trò.
+Đăng ký không chọn vai trò. Người đã đăng nhập tự xin thêm hoặc gỡ mọi vai trò có `requestable = true`. Xem vai trò và lịch sử cần `PER-09`. Gửi hoặc hủy yêu cầu cần `PER-02`. Admin duyệt cần `PER-06`. Cấp hoặc gỡ thẳng cần `PER-08`. `ADMIN` không có `PER-02`. `ADMIN` bị khóa trong database, không xin được. Vai trò chỉ đổi khi Admin duyệt. Tài khoản luôn còn ít nhất một vai trò.
 
 Vai trò được phép xin:
 
@@ -232,7 +324,7 @@ curl --location --request POST '{{base_url}}/api/admin/role-requests/1/reject' \
 Admin cấp thẳng, kể cả `ADMIN`:
 
 ```bash
-curl --location '{{base_url}}/api/admin/users/<userId>/roles' \
+curl --location '{{base_url}}/api/admin/users/vuhoang/roles' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer {{accessToken}}' \
 --data '{"roleCode":"ADMIN","reason":"Cấp quyền quản trị"}'
@@ -241,7 +333,7 @@ curl --location '{{base_url}}/api/admin/users/<userId>/roles' \
 Admin gỡ thẳng. Không tự gỡ `ADMIN` của mình và không gỡ admin cuối cùng.
 
 ```bash
-curl --location --request DELETE '{{base_url}}/api/admin/users/<userId>/roles/ORGANIZER' \
+curl --location --request DELETE '{{base_url}}/api/admin/users/vuhoang/roles/ORGANIZER' \
 --header 'Authorization: Bearer {{accessToken}}'
 ```
 
@@ -256,14 +348,14 @@ Gỡ vai trò thì thu hồi refresh token ngay. Thêm vai trò thì request ti�
   "accessToken": "...",
   "refreshToken": "...",
   "tokenType": "Bearer",
-  "expiresInSeconds": 86400,
+  "expiresInSeconds": 900,
   "refreshExpiresInSeconds": 604800
 }
 ```
 
-Access token là JWT, hạn mặc định **1 ngày**. Refresh token là chuỗi ngẫu nhiên, hạn mặc định **7 ngày**, chỉ lưu bản băm SHA-256 trong bảng `refresh_tokens`.
+Access token là JWT, hạn mặc định **15 phút** (900 giây). Refresh token là chuỗi ngẫu nhiên, hạn mặc định **7 ngày**, chỉ lưu bản băm SHA-256 trong bảng `refresh_tokens`.
 
-JWT chứa: `sub` = username, `iss` = `flash-sale`, `uid`, `authorities` (role và permission, nối bằng dấu phẩy).
+JWT chứa: `sub` = username, `iss` = `flash-sale`, `uid`, `authorities` (role và permission, nối bằng dấu phẩy). Tài khoản đăng ký mới có username trùng email. Filter đọc `sub`: nếu có `@` thì tìm theo email, không thì tìm theo username.
 
 Đăng nhập lại sẽ thu hồi mọi refresh token cũ của user đó rồi cấp cặp mới.
 
@@ -292,17 +384,20 @@ Lỗi được trả về dạng:
 
 | Mã | HTTP | Khi nào |
 | --- | --- | --- |
-| `AUTH_FAILED` | 401 | Sai mật khẩu |
-| `UNAUTHORIZED` | 401 | Chưa đăng nhập hoặc token không hợp lệ |
+| `AUTH_FAILED` | 401 | Email hoặc mật khẩu không đúng |
+| `UNAUTHORIZED` | 401 | Chưa đăng nhập, token không hợp lệ, hoặc tài khoản đã bị khóa sau khi cấp token |
 | `REFRESH_TOKEN_INVALID` | 401 | Refresh token sai hoặc hết hạn |
-| `FORBIDDEN` | 403 | Không đủ quyền |
-| `ACCOUNT_DISABLED` | 403 | Tài khoản bị khóa |
-| `TOO_MANY_REQUESTS` | 429 | Đăng nhập quá 5 lần/phút/IP |
+| `LOGIN_LOCKED` | 429 | Sai mật khẩu 5 lần, khóa đăng nhập 15 phút |
+| `RESET_TOKEN_INVALID` | 400 | Mã đặt lại mật khẩu sai, đã dùng, hoặc hết hạn |
+| `FORBIDDEN` | 403 | Không đủ quyền, ví dụ thiếu `PER-02`, `PER-04`, `PER-05`, `PER-06`, `PER-07`, `PER-08`, `PER-09` |
+| `ACCOUNT_DISABLED` | 403 | Đăng nhập khi tài khoản bị khóa |
+| `TOO_MANY_REQUESTS` | 429 | Đăng nhập quá 20 lần/phút/IP, hoặc đăng ký quá 5 lần/giờ/IP |
 | `VALIDATION_ERROR` | 400 | Body không đúng ràng buộc |
 | `PASSWORD_MISMATCH` | 400 | Mật khẩu hiện tại không khớp |
 | `USER_NOT_FOUND` | 404 | Không tìm thấy user |
-| `USERNAME_TAKEN` | 409 | Username đã có |
-| `EMAIL_TAKEN` | 409 | Email đã có |
+| `EMAIL_TAKEN` | 409 | Email đã có ở tài khoản chưa xóa |
+| `PHONE_TAKEN` | 409 | Số điện thoại đã có ở tài khoản chưa xóa |
+| `CANNOT_LOCK_SELF` | 409 | Admin tự khóa tài khoản của mình |
 | `ROLE_NOT_REQUESTABLE` | 409 | Vai trò không được phép xin, kể cả `ADMIN` |
 | `ROLE_REQUEST_PENDING` | 409 | Đã có yêu cầu chờ cho đúng vai trò này |
 | `ROLE_REQUEST_NOT_PENDING` | 409 | Yêu cầu không còn chờ duyệt |
@@ -319,19 +414,12 @@ Lỗi được trả về dạng:
 | `DATA_INTEGRITY` | 409 | Trùng khóa hoặc vi phạm ràng buộc |
 | `INTERNAL_ERROR` | 500 | Lỗi hệ thống |
 
-## Có trong code, chưa có API
-
-Hai hàm này nằm trong `AuthAccountService`, chưa có endpoint:
-
-- `searchUsersByName(name)` — tìm tối đa 20 user chưa xóa, username chứa chuỗi tìm kiếm, không phân biệt hoa thường. Kết quả: `id`, `username`, `enabled`, `dataScope`.
-- `setUserEnabledByUsername(username, enabled)` — khóa hoặc mở tài khoản. Khi khóa, thu hồi refresh token của user đó.
-
 ## Mail sau đăng ký
 
 Sau khi đăng ký, hệ thống gửi mail chào mừng cho user và mail báo user mới cho admin.
 
 - Không cấu hình SMTP thì bỏ qua, đăng ký vẫn thành công.
-- Không có email hợp lệ thì không gửi mail chào mừng.
+- Chưa cấu hình SMTP thì mã quên mật khẩu được ghi vào log, không trả trong HTTP.
 - Mail admin chỉ gửi khi có `app.mail.admin-notification-address`.
 - Gửi mail lỗi thì ghi log, không làm fail đăng ký.
 
@@ -341,7 +429,7 @@ Flyway tạo schema khi ứng dụng khởi động (`ddl-auto: validate`).
 
 | Bảng | Nội dung |
 | --- | --- |
-| `users` | Tài khoản: username, email (unique, được phép trống), họ tên, số điện thoại, mật khẩu BCrypt, enabled, data scope |
+| `users` | Tài khoản: username, email, họ tên, số điện thoại, mật khẩu BCrypt, enabled, data scope. Email và số điện thoại unique theo bản ghi chưa xóa |
 | `authz.roles` | Danh mục vai trò: mã, tên, `requestable`, `requires_org_profile`. `ADMIN` không được bật `requestable` |
 | `authz.permissions` | Quyền |
 | `authz.user_roles` | User có những role nào. Một tài khoản có thể có nhiều role, ví dụ `CUSTOMER` và `ORGANIZER` |
@@ -349,16 +437,18 @@ Flyway tạo schema khi ứng dụng khởi động (`ddl-auto: validate`).
 | `authz.user_permissions` | Quyền gán thẳng cho user (`GRANT` / `DENY`) |
 | `authz.admin_login_logs` | Lịch sử đăng nhập |
 | `refresh_tokens` | Bản băm refresh token, hạn, đã thu hồi hay chưa |
+| `password_reset_tokens` | Bản băm mã đặt lại mật khẩu, hạn 30 phút, đã dùng hay chưa |
+| `authz.account_lock_logs` | Nhật ký khóa và mở khóa: tài khoản, người thực hiện, lý do |
 | `role_requests` | Yêu cầu thêm hoặc gỡ mọi vai trò: `ADD` / `REMOVE`, trạng thái `PENDING` / `APPROVED` / `REJECTED` / `CANCELLED`. Mỗi user một yêu cầu `PENDING` cho mỗi vai trò |
 | `organizer_profiles` | Hồ sơ đơn vị, một dòng cho một user: tên đơn vị, mã số thuế, người đại diện |
 | `authz.role_change_logs` | Nhật ký mỗi lần thêm hoặc gỡ vai trò, qua yêu cầu hoặc Admin cấp thẳng |
 
 Dữ liệu sẵn sau migration:
 
-| Username | Mật khẩu | Role | Data scope | Quyền |
-| --- | --- | --- | --- | --- |
-| `admin` | `password` | `ADMIN` | `ALL` | Theo ma trận BRD 02 |
-| `user` | `password` | `CUSTOMER` | `OWN` | Theo ma trận BRD 02 |
+| Username | Email | Mật khẩu | Role | Data scope |
+| --- | --- | --- | --- | --- | --- |
+| `admin` | `admin@example.com` | `password` | `ADMIN` | `ALL` |
+| `user` | `user@example.com` | `password` | `CUSTOMER` | `OWN` |
 
 User tự đăng ký nhận role `CUSTOMER` và data scope `OWN`. Muốn thêm hoặc gỡ vai trò khác thì gửi yêu cầu, Admin duyệt. `ADMIN` chỉ được Admin cấp thẳng.
 
@@ -373,7 +463,7 @@ Role trong hệ thống: `GUEST`, `CUSTOMER`, `ORGANIZER`, `ADMIN`, `SYSTEM`. Qu
 | Cổng | `8088` |
 | Database | `jdbc:postgresql://localhost:5432/flash_sale`, user `postgres` |
 | Redis | `localhost:6379` |
-| Access token | 86400 giây |
+| Access token | 900 giây |
 | Refresh token | 604800 giây |
 | CORS | `http://localhost:3000`, `http://localhost:3002` |
 | Docker Compose | tắt (`spring.docker.compose.enabled=false`) |

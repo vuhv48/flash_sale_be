@@ -46,6 +46,17 @@ public class RegisterWelcomeMailServiceImpl implements RegisterWelcomeMailServic
 		send(adminTo, "User mới: " + newUsername, "User " + newUsername + " (" + newUserId + "), email: " + contact);
 	}
 
+	@Override
+	public void sendPasswordReset(String email, String rawToken) {
+		JavaMailSender sender = mailSender.getIfAvailable();
+		if (sender == null) {
+			log.info("[mail] chưa cấu hình SMTP, mã đặt lại mật khẩu của {}: {}", email, rawToken);
+			return;
+		}
+		send(email, "Đặt lại mật khẩu Flash Sale",
+				"Mã đặt lại mật khẩu có hiệu lực 30 phút: " + rawToken);
+	}
+
 	private void send(String to, String subject, String text) {
 		JavaMailSender sender = mailSender.getIfAvailable();
 		if (sender == null) {

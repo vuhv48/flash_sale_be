@@ -2,15 +2,21 @@ package io.github.vuhv48.flashsale.service.impl;
 
 import io.github.vuhv48.flashsale.auth.AccessRefreshResult;
 import io.github.vuhv48.flashsale.auth.AdminUserSearchResponse;
+import io.github.vuhv48.flashsale.auth.PasswordPolicy;
+import io.github.vuhv48.flashsale.auth.ProfileResponse;
 import io.github.vuhv48.flashsale.auth.RegisterOutcome;
 import io.github.vuhv48.flashsale.common.api.ErrorStatus;
 import io.github.vuhv48.flashsale.common.exception.DomainException;
 import io.github.vuhv48.flashsale.common.security.LoadUserForSecurityPort;
+import io.github.vuhv48.flashsale.persistence.entity.AccountLockLogEntity;
 import io.github.vuhv48.flashsale.persistence.entity.AuthzAdminLoginLogEntity;
+import io.github.vuhv48.flashsale.persistence.entity.PasswordResetTokenEntity;
 import io.github.vuhv48.flashsale.persistence.entity.RefreshTokenEntity;
 import io.github.vuhv48.flashsale.persistence.entity.RoleEntity;
 import io.github.vuhv48.flashsale.persistence.entity.UserAccount;
+import io.github.vuhv48.flashsale.persistence.repository.AccountLockLogRepository;
 import io.github.vuhv48.flashsale.persistence.repository.AuthzAdminLoginLogRepository;
+import io.github.vuhv48.flashsale.persistence.repository.PasswordResetTokenRepository;
 import io.github.vuhv48.flashsale.persistence.repository.RefreshTokenRepository;
 import io.github.vuhv48.flashsale.persistence.repository.RoleEntityRepository;
 import io.github.vuhv48.flashsale.persistence.repository.UserAccountRepository;
@@ -49,46 +55,81 @@ public class AuthAccountServiceImpl implements AuthAccountService {
 	private final PasswordEncoder passwordEncoder;
 	private final RegisterWelcomeMailService registerWelcomeMailService;
 	private final AuthzAdminLoginLogRepository authzAdminLoginLogRepository;
+	private final PasswordResetTokenRepository passwordResetTokenRepository;
+	private final AccountLockLogRepository accountLockLogRepository;
 
 	@Override
 	@Transactional
-	public RegisterOutcome register(
-			String username,
-			String rawPassword,
-			String contactEmail,
-			String fullName,
-			String phone
-	) {
-		String u = username.trim();
-		if (u.isEmpty()) {
-			throw new DomainException(ErrorStatus.VALIDATION_ERROR, "Tên đăng nhập không hợp lệ");
-		}
-		if (userAccountRepository.existsByUsername(u)) {
-			throw new DomainException(ErrorStatus.USERNAME_TAKEN, ErrorStatus.USERNAME_TAKEN.defaultMessage());
-		}
-		String email = normalizeEmail(contactEmail);
-		if (email != null && userAccountRepository.existsByEmail(email)) {
+	public RegisterOutcome register(String email, String rawPassword, String fullName, String phone) {
+		String normalizedEmail = normalizeEmail(email);
+		PasswordPolicy.check(rawPassword, normalizedEmail);
+		if (userAccountRepository.existsByEmail(normalizedEmail) || userAccountRepository.existsByUsername(normalizedEmail)) {
 			throw new DomainException(ErrorStatus.EMAIL_TAKEN, ErrorStatus.EMAIL_TAKEN.defaultMessage());
+		}
+		if (userAccountRepository.existsByPhone(phone)) {
+			throw new DomainException(ErrorStatus.PHONE_TAKEN, ErrorStatus.PHONE_TAKEN.defaultMessage());
 		}
 		RoleEntity userRole = roleEntityRepository.findByCodeAndIsDeletedFalseAndEnabledTrue(DEFAULT_SELF_REGISTER_ROLE)
 				.orElseThrow(() -> new DomainException(
 						ErrorStatus.ILLEGAL_STATE,
 						"Chưa cấu hình role CUSTOMER trong CSDL. Chạy migration Flyway."));
 		UserAccount acc = new UserAccount();
-		acc.setUsername(u);
-		acc.setEmail(email);
-		acc.setFullName(blankToNull(fullName));
-		acc.setPhone(blankToNull(phone));
+		acc.setUsername(normalizedEmail);
+		acc.setEmail(normalizedEmail);
+		acc.setFullName(fullName.trim());
+		acc.setPhone(phone.trim());
 		acc.setPasswordHash(passwordEncoder.encode(rawPassword));
 		acc.setEnabled(true);
 		acc.setDataScope("OWN");
 		acc.getRoles().add(userRole);
 		userAccountRepository.save(acc);
-		registerWelcomeMailService.enqueueWelcomeEmail(acc.getId(), u, email);
-		registerWelcomeMailService.enqueueAdminNewUserNotification(acc.getId(), u, email);
-		var snap = loadUserForSecurity.loadByUsername(u)
+		registerWelcomeMailService.enqueueWelcomeEmail(acc.getId(), normalizedEmail, normalizedEmail);
+		registerWelcomeMailService.enqueueAdminNewUserNotification(acc.getId(), normalizedEmail, normalizedEmail);
+		var snap = loadUserForSecurity.loadByEmail(normalizedEmail)
 				.orElseThrow(() -> new DomainException(ErrorStatus.INTERNAL_ERROR, ErrorStatus.INTERNAL_ERROR.defaultMessage()));
 		return new RegisterOutcome(issueTokens(new AppUserDetails(snap)), "Đăng ký thành công.");
+	}
+
+	@Override
+	@Transactional
+	public AccessRefreshResult login(String email, String rawPassword, String ipAddress, String userAgent) {
+		String normalizedEmail = normalizeEmail(email);
+		UserAccount user = userAccountRepository.findByEmail(normalizedEmail).orElse(null);
+		if (user == null || !passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
+			throw new DomainException(ErrorStatus.AUTH_FAILED, ErrorStatus.AUTH_FAILED.defaultMessage());
+		}
+		if (!user.isEnabled()) {
+			throw new DomainException(ErrorStatus.ACCOUNT_DISABLED, ErrorStatus.ACCOUNT_DISABLED.defaultMessage());
+		}
+		var snap = loadUserForSecurity.loadByUserId(user.getId())
+				.orElseThrow(() -> new DomainException(ErrorStatus.USER_NOT_FOUND, ErrorStatus.USER_NOT_FOUND.defaultMessage()));
+		recordAdminLoginSuccess(user.getId(), user.getUsername(), ipAddress, userAgent);
+		return issueTokens(new AppUserDetails(snap));
+	}
+
+	private UserAccount findByLoginName(String username) {
+		String value = username == null ? "" : username.trim();
+		return userAccountRepository.findByUsername(value)
+				.or(() -> userAccountRepository.findByEmail(value.toLowerCase()))
+				.orElseThrow(() -> new DomainException(ErrorStatus.USER_NOT_FOUND, ErrorStatus.USER_NOT_FOUND.defaultMessage()));
+	}
+
+	private UserAccount activeUser(UUID userId) {
+		return userAccountRepository.findActiveById(userId)
+				.orElseThrow(() -> new DomainException(ErrorStatus.USER_NOT_FOUND, ErrorStatus.USER_NOT_FOUND.defaultMessage()));
+	}
+
+	private static ProfileResponse toProfile(UserAccount user) {
+		return new ProfileResponse(user.getEmail(), user.getFullName(), user.getPhone(), user.isEnabled());
+	}
+
+	private void writeLockLog(UUID userId, UUID actorId, String action, String reason) {
+		AccountLockLogEntity log = new AccountLockLogEntity();
+		log.setUserId(userId);
+		log.setActorUserId(actorId);
+		log.setAction(action);
+		log.setReason(reason.trim());
+		accountLockLogRepository.save(log);
 	}
 
 	private static String normalizeEmail(String contactEmail) {
@@ -161,6 +202,7 @@ public class AuthAccountServiceImpl implements AuthAccountService {
 		if (!passwordEncoder.matches(currentPassword, u.getPasswordHash())) {
 			throw new DomainException(ErrorStatus.PASSWORD_MISMATCH, ErrorStatus.PASSWORD_MISMATCH.defaultMessage());
 		}
+		PasswordPolicy.check(newPassword, u.getEmail());
 		u.setPasswordHash(passwordEncoder.encode(newPassword));
 		userAccountRepository.save(u);
 		refreshTokenRepository.revokeAllActiveForUser(userId);
@@ -174,29 +216,90 @@ public class AuthAccountServiceImpl implements AuthAccountService {
 
 	@Override
 	@Transactional
-	public void setUserEnabledByUsername(String username, boolean enabled) {
-		UserAccount u = userAccountRepository.findByUsername(username.trim())
-				.orElseThrow(() -> new DomainException(ErrorStatus.USER_NOT_FOUND, ErrorStatus.USER_NOT_FOUND.defaultMessage()));
-		u.setEnabled(enabled);
-		userAccountRepository.save(u);
-		if (!enabled) {
-			refreshTokenRepository.revokeAllActiveForUser(u.getId());
+	public ProfileResponse profile(UUID userId) {
+		return toProfile(activeUser(userId));
+	}
+
+	@Override
+	@Transactional
+	public ProfileResponse updateProfile(UUID userId, String fullName, String phone) {
+		UserAccount user = activeUser(userId);
+		if (userAccountRepository.existsByPhoneAndIdNot(phone, userId)) {
+			throw new DomainException(ErrorStatus.PHONE_TAKEN, ErrorStatus.PHONE_TAKEN.defaultMessage());
 		}
+		user.setFullName(fullName.trim());
+		user.setPhone(phone.trim());
+		userAccountRepository.save(user);
+		return toProfile(user);
+	}
+
+	@Override
+	@Transactional
+	public void requestPasswordReset(String email) {
+		String normalizedEmail = normalizeEmail(email);
+		UserAccount user = userAccountRepository.findByEmail(normalizedEmail).orElse(null);
+		if (user == null || !user.isEnabled()) {
+			return;
+		}
+		passwordResetTokenRepository.markUnusedAsUsed(user.getId());
+		byte[] rnd = new byte[32];
+		RANDOM.nextBytes(rnd);
+		String raw = Base64.getUrlEncoder().withoutPadding().encodeToString(rnd);
+		PasswordResetTokenEntity token = new PasswordResetTokenEntity();
+		token.setUserId(user.getId());
+		token.setTokenHash(sha256Hex(raw));
+		token.setExpiresAt(Instant.now().plusSeconds(30 * 60));
+		token.setUsed(false);
+		passwordResetTokenRepository.save(token);
+		registerWelcomeMailService.sendPasswordReset(normalizedEmail, raw);
+	}
+
+	@Override
+	@Transactional
+	public void resetPassword(String rawToken, String newPassword) {
+		PasswordResetTokenEntity token = passwordResetTokenRepository.findByTokenHashAndUsedFalse(sha256Hex(rawToken.trim()))
+				.orElseThrow(() -> new DomainException(ErrorStatus.RESET_TOKEN_INVALID, ErrorStatus.RESET_TOKEN_INVALID.defaultMessage()));
+		if (token.getExpiresAt().isBefore(Instant.now())) {
+			throw new DomainException(ErrorStatus.RESET_TOKEN_INVALID, ErrorStatus.RESET_TOKEN_INVALID.defaultMessage());
+		}
+		UserAccount user = activeUser(token.getUserId());
+		PasswordPolicy.check(newPassword, user.getEmail());
+		user.setPasswordHash(passwordEncoder.encode(newPassword));
+		userAccountRepository.save(user);
+		token.setUsed(true);
+		passwordResetTokenRepository.save(token);
+		refreshTokenRepository.revokeAllActiveForUser(user.getId());
+	}
+
+	@Override
+	@Transactional
+	public void lockAccount(UUID actorId, String username, String reason) {
+		UserAccount user = findByLoginName(username);
+		if (actorId.equals(user.getId())) {
+			throw new DomainException(ErrorStatus.CANNOT_LOCK_SELF, ErrorStatus.CANNOT_LOCK_SELF.defaultMessage());
+		}
+		user.setEnabled(false);
+		userAccountRepository.save(user);
+		refreshTokenRepository.revokeAllActiveForUser(user.getId());
+		writeLockLog(user.getId(), actorId, "LOCK", reason);
+	}
+
+	@Override
+	@Transactional
+	public void unlockAccount(UUID actorId, String username, String reason) {
+		UserAccount user = findByLoginName(username);
+		user.setEnabled(true);
+		userAccountRepository.save(user);
+		writeLockLog(user.getId(), actorId, "UNLOCK", reason);
 	}
 
 	@Override
 	@Transactional(readOnly = true)
-	public List<AdminUserSearchResponse> searchUsersByName(String name) {
-		if (name == null || name.isBlank()) {
-			return List.of();
-		}
-		return userAccountRepository.findTop20ByIsDeletedFalseAndUsernameContainingIgnoreCaseOrderByUsernameAsc(name.trim())
+	public List<AdminUserSearchResponse> searchUsers(String name) {
+		String term = name == null ? "" : name.trim();
+		return userAccountRepository.searchActive(term, org.springframework.data.domain.PageRequest.of(0, 20))
 				.stream()
-				.map(u -> new AdminUserSearchResponse(
-						u.getId(),
-						u.getUsername(),
-						u.isEnabled(),
-						u.getDataScope()))
+				.map(u -> new AdminUserSearchResponse(u.getId(), u.getEmail(), u.getFullName(), u.getPhone(), u.isEnabled()))
 				.toList();
 	}
 

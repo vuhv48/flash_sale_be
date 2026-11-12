@@ -7,5 +7,7 @@ public interface LoadUserForSecurityPort {
 
 	Optional<UserSecuritySnapshot> loadByUsername(String username);
 
+	Optional<UserSecuritySnapshot> loadByEmail(String email);
+
 	Optional<UserSecuritySnapshot> loadByUserId(UUID userId);
 }

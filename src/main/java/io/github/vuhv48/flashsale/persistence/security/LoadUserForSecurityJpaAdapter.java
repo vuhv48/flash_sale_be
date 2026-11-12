@@ -26,6 +26,12 @@ public class LoadUserForSecurityJpaAdapter implements LoadUserForSecurityPort {
 
 	@Override
 	@Transactional(readOnly = true)
+	public Optional<UserSecuritySnapshot> loadByEmail(String email) {
+		return users.findActiveCredentialsByEmail(email).map(this::toSnapshot);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
 	public Optional<UserSecuritySnapshot> loadByUserId(UUID userId) {
 		return users.findActiveCredentialsById(userId).map(this::toSnapshot);
 	}

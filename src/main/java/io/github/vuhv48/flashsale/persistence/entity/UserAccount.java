@@ -27,13 +27,13 @@ public class UserAccount extends BaseAuditableEntity {
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
 
-	@Column(nullable = false, unique = true, length = 64)
+	@Column(nullable = false, unique = true, length = 254)
 	private String username;
 
-	@Column(unique = true, length = 320)
+	@Column(length = 254)
 	private String email;
 
-	@Column(name = "full_name", length = 255)
+	@Column(name = "full_name", length = 100)
 	private String fullName;
 
 	@Column(length = 20)

@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
 public record ChangePasswordRequest(
 		@Schema(description = "Mật khẩu hiện tại", example = "password123")
 		@NotBlank String currentPassword,
-		@Schema(description = "Mật khẩu mới, 8–128 ký tự", example = "password456")
-		@NotBlank @Size(min = 8, max = 128) String newPassword
+		@Schema(description = "Mật khẩu mới, 8–64 ký tự, có chữ hoa, chữ thường và số", example = "MatKhauMoi1")
+		@NotBlank @Size(min = 8, max = 64, message = "Mật khẩu phải từ 8 đến 64 ký tự, có chữ hoa, chữ thường và số") String newPassword
 ) {
 }

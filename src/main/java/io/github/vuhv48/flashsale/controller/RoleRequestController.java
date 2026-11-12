@@ -38,7 +38,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.UUID;
 
 @Tag(name = "Vai trò", description = "Xin thêm hoặc gỡ vai trò, và xem quyền của tài khoản đang đăng nhập")
 @RestController
@@ -126,6 +125,7 @@ public class RoleRequestController {
 							  }
 							]
 							""")))
+	@PreAuthorize("hasAuthority('PER-09')")
 	@GetMapping("/me/roles")
 	public List<RoleCatalogItem> mine(@Parameter(hidden = true) @AuthenticationPrincipal AppUserDetails principal) {
 		return roleRequestService.listMine(principal.getId());
@@ -152,6 +152,7 @@ public class RoleRequestController {
 	@ApiResponse(responseCode = "201", description = "Đã gửi yêu cầu",
 			content = @Content(schema = @Schema(implementation = MessageResponse.class),
 					examples = @ExampleObject(value = "{\"message\":\"Đã gửi yêu cầu thêm vai trò Ban tổ chức. Vui lòng chờ duyệt.\"}")))
+	@PreAuthorize("hasAuthority('PER-02')")
 	@PostMapping("/role-requests")
 	public ResponseEntity<MessageResponse> submit(
 			@Parameter(hidden = true) @AuthenticationPrincipal AppUserDetails principal,
@@ -170,6 +171,7 @@ public class RoleRequestController {
 	@ApiResponse(responseCode = "200", description = "Lịch sử yêu cầu của tôi",
 			content = @Content(array = @ArraySchema(schema = @Schema(implementation = RoleRequestView.class)),
 					examples = @ExampleObject(name = "Đang chờ duyệt ban tổ chức", value = REQUEST_EXAMPLE)))
+	@PreAuthorize("hasAuthority('PER-09')")
 	@GetMapping("/role-requests/me")
 	public List<RoleRequestView> history(@Parameter(hidden = true) @AuthenticationPrincipal AppUserDetails principal) {
 		return roleRequestService.history(principal.getId());
@@ -182,6 +184,7 @@ public class RoleRequestController {
 	@ApiResponse(responseCode = "200", description = "Đã hủy",
 			content = @Content(schema = @Schema(implementation = MessageResponse.class),
 					examples = @ExampleObject(value = "{\"message\":\"Đã hủy yêu cầu.\"}")))
+	@PreAuthorize("hasAuthority('PER-02')")
 	@PostMapping("/role-requests/{id}/cancel")
 	public MessageResponse cancel(
 			@Parameter(description = "Mã yêu cầu", example = "12") @PathVariable Long id,
@@ -198,7 +201,7 @@ public class RoleRequestController {
 			content = @Content(array = @ArraySchema(schema = @Schema(implementation = RoleRequestView.class)),
 					examples = @ExampleObject(value = REQUEST_EXAMPLE)))
 	@GetMapping("/admin/role-requests")
-	@PreAuthorize("hasRole('ADMIN')")
+	@PreAuthorize("hasAuthority('PER-06')")
 	public List<RoleRequestView> list(
 			@Parameter(description = "PENDING, APPROVED, REJECTED hoặc CANCELLED", example = "PENDING")
 			@RequestParam(defaultValue = "PENDING") String status,
@@ -219,7 +222,7 @@ public class RoleRequestController {
 			content = @Content(schema = @Schema(implementation = MessageResponse.class),
 					examples = @ExampleObject(value = "{\"message\":\"Yêu cầu thêm vai trò Ban tổ chức đã được duyệt.\"}")))
 	@PostMapping("/admin/role-requests/{id}/approve")
-	@PreAuthorize("hasRole('ADMIN')")
+	@PreAuthorize("hasAuthority('PER-06')")
 	public MessageResponse approve(
 			@Parameter(description = "Mã yêu cầu", example = "12") @PathVariable Long id,
 			@Parameter(hidden = true) @AuthenticationPrincipal AppUserDetails principal
@@ -235,7 +238,7 @@ public class RoleRequestController {
 			content = @Content(schema = @Schema(implementation = MessageResponse.class),
 					examples = @ExampleObject(value = "{\"message\":\"Yêu cầu thêm vai trò Ban tổ chức bị từ chối: Thiếu giấy tờ đăng ký kinh doanh.\"}")))
 	@PostMapping("/admin/role-requests/{id}/reject")
-	@PreAuthorize("hasRole('ADMIN')")
+	@PreAuthorize("hasAuthority('PER-06')")
 	public MessageResponse reject(
 			@Parameter(description = "Mã yêu cầu", example = "12") @PathVariable Long id,
 			@Parameter(hidden = true) @AuthenticationPrincipal AppUserDetails principal,
@@ -246,21 +249,22 @@ public class RoleRequestController {
 
 	@Operation(
 			summary = "Admin cấp thẳng vai trò",
-			description = "Cấp một vai trò không qua yêu cầu, kể cả ADMIN. Các vai trò đang có được giữ nguyên."
+			description = "Cấp một vai trò không qua yêu cầu, kể cả ADMIN. Các vai trò đang có được giữ nguyên. "
+					+ "Người nhận được xác định bằng username."
 	)
 	@ApiResponse(responseCode = "200", description = "Đã cấp vai trò",
 			content = @Content(schema = @Schema(implementation = MessageResponse.class),
 					examples = @ExampleObject(value = "{\"message\":\"Đã cấp vai trò Quản trị viên.\"}")))
-	@PostMapping("/admin/users/{userId}/roles")
-	@PreAuthorize("hasRole('ADMIN')")
+	@PostMapping("/admin/users/{username}/roles")
+	@PreAuthorize("hasAuthority('PER-08')")
 	public MessageResponse grant(
-			@Parameter(description = "Mã người nhận vai trò", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
-			@PathVariable UUID userId,
+			@Parameter(description = "Tên đăng nhập của người nhận vai trò", example = "vuhoang")
+			@PathVariable String username,
 			@Parameter(hidden = true) @AuthenticationPrincipal AppUserDetails principal,
 			@Valid @RequestBody GrantRoleRequest body
 	) {
 		return new MessageResponse(roleRequestService.grantDirect(
-				userId, principal.getId(), body.roleCode(), body.reason()));
+				username, principal.getId(), body.roleCode(), body.reason()));
 	}
 
 	@Operation(
@@ -271,18 +275,18 @@ public class RoleRequestController {
 	@ApiResponse(responseCode = "200", description = "Đã gỡ vai trò",
 			content = @Content(schema = @Schema(implementation = MessageResponse.class),
 					examples = @ExampleObject(value = "{\"message\":\"Đã gỡ vai trò Ban tổ chức.\"}")))
-	@DeleteMapping("/admin/users/{userId}/roles/{code}")
-	@PreAuthorize("hasRole('ADMIN')")
+	@DeleteMapping("/admin/users/{username}/roles/{code}")
+	@PreAuthorize("hasAuthority('PER-08')")
 	public MessageResponse revoke(
-			@Parameter(description = "Mã người bị gỡ vai trò", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
-			@PathVariable UUID userId,
+			@Parameter(description = "Tên đăng nhập của người bị gỡ vai trò", example = "vuhoang")
+			@PathVariable String username,
 			@Parameter(description = "Mã vai trò cần gỡ", example = "ORGANIZER")
 			@PathVariable String code,
 			@Parameter(hidden = true) @AuthenticationPrincipal AppUserDetails principal,
 			@Parameter(description = "Lý do, không bắt buộc", example = "Người này không còn tổ chức sự kiện")
 			@RequestParam(required = false) String reason
 	) {
-		return new MessageResponse(roleRequestService.revokeDirect(userId, principal.getId(), code, reason));
+		return new MessageResponse(roleRequestService.revokeDirect(username, principal.getId(), code, reason));
 	}
 
 	private static RoleRequestStatus parseStatus(String status) {

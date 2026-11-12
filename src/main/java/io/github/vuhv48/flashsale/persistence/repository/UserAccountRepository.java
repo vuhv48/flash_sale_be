@@ -14,8 +14,17 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
 	@Query("select case when count(u) > 0 then true else false end from UserAccount u where u.username = :username and u.isDeleted = false")
 	boolean existsByUsername(@Param("username") String username);
 
-	@Query("select case when count(u) > 0 then true else false end from UserAccount u where lower(u.email) = :email")
+	@Query("select case when count(u) > 0 then true else false end from UserAccount u where lower(u.email) = :email and u.isDeleted = false")
 	boolean existsByEmail(@Param("email") String email);
+
+	@Query("select case when count(u) > 0 then true else false end from UserAccount u where u.phone = :phone and u.isDeleted = false and u.id <> :userId")
+	boolean existsByPhoneAndIdNot(@Param("phone") String phone, @Param("userId") UUID userId);
+
+	@Query("select case when count(u) > 0 then true else false end from UserAccount u where u.phone = :phone and u.isDeleted = false")
+	boolean existsByPhone(@Param("phone") String phone);
+
+	@Query("select u from UserAccount u where lower(u.email) = :email and u.isDeleted = false")
+	Optional<UserAccount> findByEmail(@Param("email") String email);
 
 	@Query("""
 			select count(distinct u.id) from UserAccount u join u.roles r
@@ -29,7 +38,17 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
 	@Query("select u from UserAccount u where u.id = :id and u.isDeleted = false")
 	Optional<UserAccount> findActiveById(@Param("id") UUID id);
 
-	List<UserAccount> findTop20ByIsDeletedFalseAndUsernameContainingIgnoreCaseOrderByUsernameAsc(String username);
+	@Query("""
+			select u from UserAccount u
+			where u.isDeleted = false
+			  and (
+			    lower(u.username) like lower(concat('%', :term, '%'))
+			    or lower(coalesce(u.email, '')) like lower(concat('%', :term, '%'))
+			    or lower(coalesce(u.fullName, '')) like lower(concat('%', :term, '%'))
+			  )
+			order by u.username
+			""")
+	List<UserAccount> searchActive(@Param("term") String term, org.springframework.data.domain.Pageable pageable);
 
 	@Query(
 			value = """
@@ -40,6 +59,16 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
 					""",
 			nativeQuery = true)
 	Optional<UserSecurityCredentialsProjection> findActiveCredentialsByUsername(@Param("username") String username);
+
+	@Query(
+			value = """
+					select u.id as id, u.username as username, u.password_hash as passwordHash,
+					       u.enabled as enabled, u.data_scope as dataScope
+					from users u
+					where lower(u.email) = :email and u.is_deleted = false
+					""",
+			nativeQuery = true)
+	Optional<UserSecurityCredentialsProjection> findActiveCredentialsByEmail(@Param("email") String email);
 
 	@Query(
 			value = """

@@ -39,6 +39,10 @@ app:
         path: /api/auth/register
       - method: POST
         path: /api/auth/refresh
+      - method: POST
+        path: /api/auth/forgot-password
+      - method: POST
+        path: /api/auth/reset-password
       - method: GET
         path: /actuator/health
       - method: GET
@@ -54,5 +58,5 @@ app:
     jwt:
       secret: ${JWT_SECRET:dev-only-change-in-production-min-32-chars-ok}
       issuer: flash-sale
-      expiration-seconds: 86400
+      expiration-seconds: 900
       refresh-expiration-seconds: 604800

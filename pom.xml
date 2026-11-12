@@ -33,6 +33,7 @@
 		<maven.compiler.target>21</maven.compiler.target>
 		<jjwt.version>0.12.6</jjwt.version>
 		<springdoc.version>3.2.0</springdoc.version>
+		<lombok.version>1.18.48</lombok.version>
 		<m2e.apt.activation>jdt_apt</m2e.apt.activation>
 	</properties>
 	<dependencies>

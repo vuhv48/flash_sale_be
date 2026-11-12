@@ -162,8 +162,8 @@ public class RoleRequestService {
 	}
 
 	@Transactional
-	public String grantDirect(UUID targetUserId, UUID adminId, String roleCode, String reason) {
-		UserAccount user = activeUser(targetUserId);
+	public String grantDirect(String username, UUID adminId, String roleCode, String reason) {
+		UserAccount user = activeUserByUsername(username);
 		RoleEntity role = roleEntityRepository.findByCodeAndIsDeletedFalseAndEnabledTrue(roleCode)
 				.orElseThrow(() -> new DomainException(ErrorStatus.ROLE_NOT_FOUND, ErrorStatus.ROLE_NOT_FOUND.defaultMessage()));
 		if (holds(user, role.getCode())) {
@@ -174,8 +174,8 @@ public class RoleRequestService {
 	}
 
 	@Transactional
-	public String revokeDirect(UUID targetUserId, UUID adminId, String roleCode, String reason) {
-		UserAccount user = activeUser(targetUserId);
+	public String revokeDirect(String username, UUID adminId, String roleCode, String reason) {
+		UserAccount user = activeUserByUsername(username);
 		RoleEntity role = roleEntityRepository.findByCodeAndIsDeletedFalseAndEnabledTrue(roleCode)
 				.orElseThrow(() -> new DomainException(ErrorStatus.ROLE_NOT_FOUND, ErrorStatus.ROLE_NOT_FOUND.defaultMessage()));
 		if (!holds(user, role.getCode())) {
@@ -261,6 +261,16 @@ public class RoleRequestService {
 					ErrorStatus.ROLE_REQUEST_NOT_PENDING.defaultMessage());
 		}
 		return request;
+	}
+
+	private UserAccount activeUserByUsername(String username) {
+		String normalized = username == null ? "" : username.trim();
+		UserAccount user = userAccountRepository.findByUsername(normalized)
+				.orElseThrow(() -> new DomainException(ErrorStatus.USER_NOT_FOUND, ErrorStatus.USER_NOT_FOUND.defaultMessage()));
+		if (!user.isEnabled()) {
+			throw new DomainException(ErrorStatus.ACCOUNT_DISABLED, ErrorStatus.ACCOUNT_DISABLED.defaultMessage());
+		}
+		return user;
 	}
 
 	private UserAccount activeUser(UUID userId) {
