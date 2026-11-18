@@ -36,7 +36,7 @@ Table users {
 
 Table refresh_tokens {
   id uuid [pk, default: `gen_random_uuid()`]
-  user_id uuid [not null, ref: > users.id, delete: cascade]
+  user_id uuid [not null, ref: > users.id, delete: "cascade"]
   token_hash varchar(64) [not null, unique, note: 'SHA-256 của refresh token']
   expires_at timestamptz [not null]
   revoked boolean [not null, default: false]
@@ -131,8 +131,8 @@ Table authz.permissions {
 }
 
 Table authz.user_roles {
-  user_id uuid [pk, not null, ref: > users.id, delete: cascade]
-  role_id uuid [pk, not null, ref: > authz.roles.id, delete: cascade]
+  user_id uuid [pk, not null, ref: > users.id, delete: "cascade"]
+  role_id uuid [pk, not null, ref: > authz.roles.id, delete: "cascade"]
   is_deleted boolean [not null, default: false]
   created_at timestamptz [not null, default: `now()`]
   created_by varchar(255)
@@ -143,8 +143,8 @@ Table authz.user_roles {
 }
 
 Table authz.role_permissions {
-  role_id uuid [pk, not null, ref: > authz.roles.id, delete: cascade]
-  permission_id uuid [pk, not null, ref: > authz.permissions.id, delete: cascade]
+  role_id uuid [pk, not null, ref: > authz.roles.id, delete: "cascade"]
+  permission_id uuid [pk, not null, ref: > authz.permissions.id, delete: "cascade"]
   access_level varchar(16) [not null, note: 'ALL, OWN hoặc AUTO']
   is_deleted boolean [not null, default: false]
   created_at timestamptz [not null, default: `now()`]
@@ -156,8 +156,8 @@ Table authz.role_permissions {
 }
 
 Table authz.user_permissions {
-  user_id uuid [pk, not null, ref: > users.id, delete: cascade]
-  permission_id uuid [pk, not null, ref: > authz.permissions.id, delete: cascade]
+  user_id uuid [pk, not null, ref: > users.id, delete: "cascade"]
+  permission_id uuid [pk, not null, ref: > authz.permissions.id, delete: "cascade"]
   effect_type varchar(16) [not null, default: 'GRANT', note: 'GRANT hoặc DENY']
   is_deleted boolean [not null, default: false]
   created_at timestamptz [not null, default: `now()`]
@@ -174,7 +174,7 @@ Table authz.user_permissions {
 
 Table authz.admin_login_logs {
   id bigint [pk, increment]
-  user_id uuid [ref: > users.id, delete: set null]
+  user_id uuid [ref: > users.id, delete: "set null"]
   username varchar(64) [not null]
   ip_address varchar(64)
   user_agent varchar(255)
