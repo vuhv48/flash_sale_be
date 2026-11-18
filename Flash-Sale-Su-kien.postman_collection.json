@@ -1,0 +1,421 @@
+{
+  "info": {
+    "name": "Flash Sale - Sự kiện và loại vé",
+    "description": "BRD 04. Import vào Postman.\n\nBiến collection: base_url, accessToken (ban tổ chức), adminAccessToken (admin), provinceId, eventId, ticketTypeId, imageId.\n\nChạy theo thứ tự: Đăng nhập ban tổ chức, Danh sách tỉnh thành, Tạo sự kiện nháp, Thêm loại vé, Gắn ảnh bìa, Gửi duyệt. Các request này tự ghi biến. Admin duyệt bằng tài khoản có REVIEW_EVENT, token lưu ở adminAccessToken.\n\nBan tổ chức cần vai trò ORGANIZER. Admin seed: admin@example.com.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8088" },
+    { "key": "accessToken", "value": "" },
+    { "key": "adminAccessToken", "value": "" },
+    { "key": "provinceId", "value": "" },
+    { "key": "eventId", "value": "" },
+    { "key": "ticketTypeId", "value": "" },
+    { "key": "imageId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Chuẩn bị",
+      "item": [
+        {
+          "name": "Đăng ký",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"organizer@example.com\",\n  \"password\": \"MatKhau123\",\n  \"confirmPassword\": \"MatKhau123\",\n  \"fullName\": \"Ban To Chuc\",\n  \"phone\": \"0912345678\",\n  \"acceptedTerms\": true\n}"
+            },
+            "url": "{{base_url}}/api/auth/register",
+            "description": "Tài khoản mới chỉ có CUSTOMER. Muốn tạo sự kiện thì Admin phải cấp thêm ORGANIZER."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "const body = pm.response.json();",
+                "if (body.accessToken) pm.collectionVariables.set('accessToken', body.accessToken);"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Đăng nhập ban tổ chức",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"organizer@example.com\",\n  \"password\": \"MatKhau123\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/login",
+            "description": "Lưu accessToken. Tài khoản phải có vai trò ORGANIZER."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "const body = pm.response.json();",
+                "if (body.accessToken) pm.collectionVariables.set('accessToken', body.accessToken);"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Đăng nhập admin",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/login",
+            "description": "Lưu adminAccessToken cho các API duyệt, từ chối, hủy."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "const body = pm.response.json();",
+                "if (body.accessToken) pm.collectionVariables.set('adminAccessToken', body.accessToken);"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Danh sách tỉnh thành",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/provinces",
+            "description": "Không cần token. Tự lưu provinceId của dòng đầu tiên."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "const body = pm.response.json();",
+                "if (Array.isArray(body) && body.length) pm.collectionVariables.set('provinceId', body[0].id);"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Thể loại sự kiện",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/event-categories",
+            "description": "MUSIC, SPORT, CONFERENCE, THEATER, OTHER."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Công khai",
+      "item": [
+        {
+          "name": "Danh sách sự kiện",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/events?category=MUSIC&page=0&size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "events"],
+              "query": [
+                { "key": "category", "value": "MUSIC" },
+                { "key": "provinceId", "value": "{{provinceId}}", "disabled": true },
+                { "key": "date", "value": "2026-12-20", "disabled": true },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            },
+            "description": "Không cần token. Chỉ sự kiện đã duyệt, đang bán, tạm dừng hoặc kết thúc bán."
+          }
+        },
+        {
+          "name": "Chi tiết sự kiện",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/events/{{eventId}}",
+            "description": "Khách thấy Còn / Sắp hết / Hết, không thấy số vé chính xác."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ban tổ chức",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "Sự kiện của tôi",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/organizer/events?page=0&size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizer", "events"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            },
+            "description": "READ_UNPUBLISHED_EVENT."
+          }
+        },
+        {
+          "name": "Chi tiết sự kiện của tôi",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/organizer/events/{{eventId}}",
+            "description": "READ_UNPUBLISHED_EVENT. Có số lượng vé và ảnh."
+          }
+        },
+        {
+          "name": "Tạo sự kiện nháp",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Đêm nhạc Mùa Đông 2026\",\n  \"description\": \"Đêm nhạc ngoài trời tại sân vận động, mở cửa từ 17:00.\",\n  \"category\": \"MUSIC\",\n  \"venueName\": \"Sân vận động Mỹ Đình\",\n  \"venueAddress\": \"Đường Lê Đức Thọ, Mỹ Đình\",\n  \"provinceId\": \"{{provinceId}}\",\n  \"startsAt\": \"2026-12-20T12:00:00Z\",\n  \"endsAt\": \"2026-12-20T15:00:00Z\",\n  \"waitingRoomOpensAt\": \"2026-12-19T02:30:00Z\",\n  \"saleStartsAt\": \"2026-12-19T03:00:00Z\",\n  \"saleEndsAt\": \"2026-12-20T11:00:00Z\",\n  \"maxTicketsPerUser\": 4\n}"
+            },
+            "url": "{{base_url}}/api/organizer/events",
+            "description": "CREATE_DRAFT_EVENT. Trả 201, trạng thái DRAFT. Tự lưu eventId. Chạy Danh sách tỉnh thành trước để có provinceId."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "const body = pm.response.json();",
+                "if (body.id) pm.collectionVariables.set('eventId', body.id);"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Sửa sự kiện",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Đêm nhạc Mùa Đông 2026\",\n  \"description\": \"Đêm nhạc ngoài trời tại sân vận động, mở cửa từ 17:00.\",\n  \"category\": \"MUSIC\",\n  \"venueName\": \"Sân vận động Mỹ Đình\",\n  \"venueAddress\": \"Đường Lê Đức Thọ, Mỹ Đình\",\n  \"provinceId\": \"{{provinceId}}\",\n  \"startsAt\": \"2026-12-20T12:00:00Z\",\n  \"endsAt\": \"2026-12-20T15:00:00Z\",\n  \"waitingRoomOpensAt\": \"2026-12-19T02:30:00Z\",\n  \"saleStartsAt\": \"2026-12-19T03:00:00Z\",\n  \"saleEndsAt\": \"2026-12-20T11:00:00Z\",\n  \"maxTicketsPerUser\": 4\n}"
+            },
+            "url": "{{base_url}}/api/organizer/events/{{eventId}}",
+            "description": "UPDATE_OWN_EVENT. Chỉ khi DRAFT hoặc REJECTED. Gửi cả form. Sự kiện bị từ chối sẽ về nháp."
+          }
+        },
+        {
+          "name": "Thêm loại vé",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"VIP\",\n  \"price\": 500000,\n  \"totalQuantity\": 1000,\n  \"sortOrder\": 1\n}"
+            },
+            "url": "{{base_url}}/api/organizer/events/{{eventId}}/ticket-types",
+            "description": "CREATE_DRAFT_EVENT. Giá là bội số của 1000. Tối đa 10 loại. Tự lưu ticketTypeId."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "const body = pm.response.json();",
+                "if (body.ticketTypes && body.ticketTypes.length) {",
+                "  pm.collectionVariables.set('ticketTypeId', body.ticketTypes[0].id);",
+                "}"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Sửa loại vé",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"VIP\",\n  \"price\": 600000,\n  \"totalQuantity\": 1000,\n  \"sortOrder\": 1\n}"
+            },
+            "url": "{{base_url}}/api/organizer/events/{{eventId}}/ticket-types/{{ticketTypeId}}",
+            "description": "UPDATE_OWN_EVENT. Chỉ khi sự kiện còn nháp hoặc bị từ chối."
+          }
+        },
+        {
+          "name": "Xóa loại vé",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/organizer/events/{{eventId}}/ticket-types/{{ticketTypeId}}",
+            "description": "UPDATE_OWN_EVENT. Xóa mềm. Không xóa loại vé đã có vé đang giữ hoặc đã bán."
+          }
+        },
+        {
+          "name": "Gắn ảnh bìa",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"EVENT_COVER\",\n  \"fileName\": \"cover.jpg\",\n  \"mimeType\": \"image/jpeg\",\n  \"sizeBytes\": 350000,\n  \"sortOrder\": 0\n}"
+            },
+            "url": "{{base_url}}/api/organizer/events/{{eventId}}/images",
+            "description": "UPDATE_OWN_EVENT. Ghi nhận ảnh để gửi duyệt. File thật chưa được tải lên kho. Tự lưu imageId của ảnh bìa."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "const body = pm.response.json();",
+                "const cover = (body.images || []).find(image => image.type === 'EVENT_COVER');",
+                "if (cover) pm.collectionVariables.set('imageId', cover.id);"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Gỡ ảnh",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/organizer/events/{{eventId}}/images/{{imageId}}",
+            "description": "UPDATE_OWN_EVENT. imageId là id ảnh của sự kiện, không phải documentId."
+          }
+        },
+        {
+          "name": "Gửi duyệt",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/api/organizer/events/{{eventId}}/submit",
+            "description": "SUBMIT_EVENT. Cần mô tả, địa điểm, giờ hợp lệ, ít nhất một loại vé và một ảnh bìa. Giờ mở bán phải sau lúc gửi ít nhất 24 giờ."
+          }
+        },
+        {
+          "name": "Tạm dừng",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/api/organizer/events/{{eventId}}/pause",
+            "description": "PAUSE_SALE. Chỉ khi đang bán. Tối đa 3 lần, mỗi lần 30 phút."
+          }
+        },
+        {
+          "name": "Tiếp tục bán",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/api/organizer/events/{{eventId}}/resume",
+            "description": "PAUSE_SALE. Chỉ khi đang tạm dừng."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "Danh sách sự kiện",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/events?status=PENDING_REVIEW&page=0&size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "events"],
+              "query": [
+                { "key": "status", "value": "PENDING_REVIEW" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            },
+            "description": "READ_UNPUBLISHED_EVENT. Bỏ status để lấy mọi trạng thái."
+          }
+        },
+        {
+          "name": "Chi tiết sự kiện",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/admin/events/{{eventId}}",
+            "description": "READ_UNPUBLISHED_EVENT. Xem cả sự kiện chưa công khai."
+          }
+        },
+        {
+          "name": "Duyệt",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/api/admin/events/{{eventId}}/approve",
+            "description": "REVIEW_EVENT. Chỉ sự kiện đang chờ duyệt."
+          }
+        },
+        {
+          "name": "Từ chối",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Thiếu giấy phép tổ chức sự kiện\"\n}"
+            },
+            "url": "{{base_url}}/api/admin/events/{{eventId}}/reject",
+            "description": "REVIEW_EVENT. Lý do từ 10 đến 500 ký tự."
+          }
+        },
+        {
+          "name": "Tạm dừng",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/api/admin/events/{{eventId}}/pause",
+            "description": "PAUSE_SALE. Không tính vào 3 lần của ban tổ chức."
+          }
+        },
+        {
+          "name": "Tiếp tục bán",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/api/admin/events/{{eventId}}/resume",
+            "description": "PAUSE_SALE."
+          }
+        },
+        {
+          "name": "Hủy sự kiện",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Ban tổ chức đổi địa điểm tổ chức\"\n}"
+            },
+            "url": "{{base_url}}/api/admin/events/{{eventId}}/cancel",
+            "description": "CANCEL_EVENT. Hủy giữ chỗ, tạo hoàn tiền cho đơn đã thanh toán và vô hiệu hóa vé."
+          }
+        }
+      ]
+    }
+  ]
+}

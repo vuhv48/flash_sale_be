@@ -55,6 +55,14 @@ app:
         path: /v3/api-docs/**
       - method: GET
         path: /v3/api-docs.yaml
+      - method: GET
+        path: /api/events
+      - method: GET
+        path: /api/events/*
+      - method: GET
+        path: /api/provinces
+      - method: GET
+        path: /api/event-categories
     jwt:
       secret: ${JWT_SECRET:dev-only-change-in-production-min-32-chars-ok}
       issuer: flash-sale

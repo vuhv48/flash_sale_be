@@ -112,7 +112,7 @@ Table authz.roles {
 
 Table authz.permissions {
   id uuid [pk, default: `gen_random_uuid()`]
-  code varchar(128) [not null, unique, note: 'PER-01 đến PER-65, kể cả PER-09a']
+  code varchar(128) [not null, unique, note: 'Tên hành động, ví dụ MANAGE_PROFILE, READ_UNPUBLISHED_EVENT']
   permission_group varchar(64) [not null]
   action_code varchar(32) [not null]
   name varchar(255) [not null]

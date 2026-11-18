@@ -50,7 +50,7 @@ public class AdminUserController {
 							]
 							""")))
 	@GetMapping
-	@PreAuthorize("hasAuthority('PER-05')")
+	@PreAuthorize("hasAuthority('READ_USERS')")
 	public List<AdminUserSearchResponse> search(
 			@Parameter(description = "Chuỗi tìm, không bắt buộc", example = "vu")
 			@RequestParam(required = false) String name
@@ -66,7 +66,7 @@ public class AdminUserController {
 			content = @Content(schema = @Schema(implementation = MessageResponse.class),
 					examples = @ExampleObject(value = "{\"message\":\"Đã khóa tài khoản.\"}")))
 	@PostMapping("/{username}/lock")
-	@PreAuthorize("hasAuthority('PER-07')")
+	@PreAuthorize("hasAuthority('LOCK_ACCOUNT')")
 	public MessageResponse lock(
 			@Parameter(description = "Username. Tài khoản đăng ký mới có username trùng email.", example = "vu@example.com")
 			@PathVariable String username,
@@ -82,7 +82,7 @@ public class AdminUserController {
 			content = @Content(schema = @Schema(implementation = MessageResponse.class),
 					examples = @ExampleObject(value = "{\"message\":\"Đã mở khóa tài khoản.\"}")))
 	@PostMapping("/{username}/unlock")
-	@PreAuthorize("hasAuthority('PER-07')")
+	@PreAuthorize("hasAuthority('LOCK_ACCOUNT')")
 	public MessageResponse unlock(
 			@Parameter(example = "vu@example.com") @PathVariable String username,
 			@Parameter(hidden = true) @AuthenticationPrincipal AppUserDetails principal,
