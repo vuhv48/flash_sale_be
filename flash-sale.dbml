@@ -1,0 +1,235 @@
+// Sơ đồ database flash_sale sau migration V8.
+// Mở https://dbdiagram.io/d → Import → dán toàn bộ file này.
+
+Project flash_sale {
+  database_type: 'PostgreSQL'
+  Note: '''
+    Database flash_sale.
+    Email unique theo lower(email) với tài khoản chưa xóa.
+    Số điện thoại unique với tài khoản chưa xóa.
+    Mỗi user chỉ có một yêu cầu PENDING cho mỗi vai trò.
+    Mã số thuế unique với hồ sơ đơn vị chưa xóa.
+  '''
+}
+
+Table users {
+  id uuid [pk, default: `gen_random_uuid()`]
+  username varchar(254) [not null, unique, note: 'Tài khoản đăng ký mới có username trùng email']
+  email varchar(254) [note: 'Unique theo lower(email) khi is_deleted = false']
+  full_name varchar(100)
+  phone varchar(20) [note: 'Unique khi is_deleted = false và phone không null']
+  password_hash varchar(255) [not null, note: 'BCrypt']
+  enabled boolean [not null, default: true, note: 'false khi Admin khóa tài khoản']
+  data_scope varchar(128) [note: 'ALL hoặc OWN']
+  is_deleted boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+  created_by varchar(255)
+  updated_at timestamptz [not null, default: `now()`]
+  updated_by varchar(255)
+
+  indexes {
+    username [name: 'idx_users_username']
+  }
+
+  Note: 'Tài khoản đăng nhập'
+}
+
+Table refresh_tokens {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id, delete: cascade]
+  token_hash varchar(64) [not null, unique, note: 'SHA-256 của refresh token']
+  expires_at timestamptz [not null]
+  revoked boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    user_id [name: 'idx_refresh_tokens_user_id']
+  }
+
+  Note: 'Refresh token, hạn 7 ngày'
+}
+
+Table password_reset_tokens {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  token_hash varchar(64) [not null, unique, note: 'SHA-256 của mã đặt lại mật khẩu']
+  expires_at timestamptz [not null, note: 'Hạn 30 phút']
+  used boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+
+  Note: 'Mã quên mật khẩu'
+}
+
+Table role_requests {
+  id bigint [pk, increment]
+  user_id uuid [not null, ref: > users.id]
+  role_code varchar(64) [not null, ref: > authz.roles.code]
+  action varchar(10) [not null, note: 'ADD hoặc REMOVE']
+  status varchar(20) [not null, default: 'PENDING', note: 'PENDING, APPROVED, REJECTED, CANCELLED']
+  user_note varchar(500)
+  reject_reason varchar(500)
+  reviewed_by uuid [ref: > users.id, note: 'Admin duyệt hoặc từ chối']
+  reviewed_at timestamptz
+  is_deleted boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+  created_by varchar(255)
+  updated_at timestamptz [not null, default: `now()`]
+  updated_by varchar(255)
+
+  Note: 'Yêu cầu thêm hoặc gỡ vai trò. Unique (user_id, role_code) khi status = PENDING và chưa xóa'
+}
+
+Table organizer_profiles {
+  user_id uuid [pk, ref: - users.id]
+  org_name varchar(200) [not null]
+  tax_code varchar(13) [not null, note: 'Unique khi is_deleted = false']
+  representative varchar(100) [not null]
+  is_deleted boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+  created_by varchar(255)
+  updated_at timestamptz [not null, default: `now()`]
+  updated_by varchar(255)
+
+  Note: 'Hồ sơ đơn vị, một dòng cho một user'
+}
+
+Table authz.roles {
+  id uuid [pk, default: `gen_random_uuid()`]
+  code varchar(64) [not null, unique, note: 'GUEST, CUSTOMER, ORGANIZER, ADMIN, SYSTEM']
+  name varchar(100) [not null]
+  description varchar(500)
+  requestable boolean [not null, default: false, note: 'ADMIN không được bật cờ này']
+  requires_org_profile boolean [not null, default: false]
+  enabled boolean [not null, default: true]
+  is_deleted boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+  created_by varchar(255)
+  updated_at timestamptz [not null, default: `now()`]
+  updated_by varchar(255)
+
+  Note: 'Danh mục vai trò. Schema authz'
+}
+
+Table authz.permissions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  code varchar(128) [not null, unique, note: 'PER-01 đến PER-65, kể cả PER-09a']
+  permission_group varchar(64) [not null]
+  action_code varchar(32) [not null]
+  name varchar(255) [not null]
+  enabled boolean [not null, default: true]
+  is_deleted boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+  created_by varchar(255)
+  updated_at timestamptz [not null, default: `now()`]
+  updated_by varchar(255)
+
+  indexes {
+    (permission_group, action_code) [unique, name: 'uq_authz_permissions_group_action']
+  }
+
+  Note: 'Danh mục quyền. Schema authz'
+}
+
+Table authz.user_roles {
+  user_id uuid [pk, not null, ref: > users.id, delete: cascade]
+  role_id uuid [pk, not null, ref: > authz.roles.id, delete: cascade]
+  is_deleted boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+  created_by varchar(255)
+  updated_at timestamptz [not null, default: `now()`]
+  updated_by varchar(255)
+
+  Note: 'Một user có thể có nhiều vai trò'
+}
+
+Table authz.role_permissions {
+  role_id uuid [pk, not null, ref: > authz.roles.id, delete: cascade]
+  permission_id uuid [pk, not null, ref: > authz.permissions.id, delete: cascade]
+  access_level varchar(16) [not null, note: 'ALL, OWN hoặc AUTO']
+  is_deleted boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+  created_by varchar(255)
+  updated_at timestamptz [not null, default: `now()`]
+  updated_by varchar(255)
+
+  Note: 'Quyền của từng vai trò và mức dữ liệu'
+}
+
+Table authz.user_permissions {
+  user_id uuid [pk, not null, ref: > users.id, delete: cascade]
+  permission_id uuid [pk, not null, ref: > authz.permissions.id, delete: cascade]
+  effect_type varchar(16) [not null, default: 'GRANT', note: 'GRANT hoặc DENY']
+  is_deleted boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+  created_by varchar(255)
+  updated_at timestamptz [not null, default: `now()`]
+  updated_by varchar(255)
+
+  indexes {
+    user_id [name: 'idx_user_permissions_user_id']
+  }
+
+  Note: 'Quyền gán thẳng cho một user'
+}
+
+Table authz.admin_login_logs {
+  id bigint [pk, increment]
+  user_id uuid [ref: > users.id, delete: set null]
+  username varchar(64) [not null]
+  ip_address varchar(64)
+  user_agent varchar(255)
+  logged_in_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (user_id, logged_in_at) [name: 'idx_authz_admin_login_logs_user']
+  }
+
+  Note: 'Nhật ký đăng nhập'
+}
+
+Table authz.role_change_logs {
+  id bigint [pk, increment]
+  actor_user_id uuid [ref: > users.id, note: 'Người thực hiện, có thể trống với tác vụ hệ thống']
+  target_user_id uuid [not null, ref: > users.id]
+  role_code varchar(64) [not null]
+  action varchar(10) [not null, note: 'ADD hoặc REMOVE']
+  source varchar(20) [not null, note: 'REQUEST hoặc DIRECT']
+  request_id bigint [ref: > role_requests.id]
+  reason varchar(500)
+  created_at timestamptz [not null, default: `now()`]
+
+  Note: 'Nhật ký mỗi lần thêm hoặc gỡ vai trò'
+}
+
+Table authz.account_lock_logs {
+  id bigint [pk, increment]
+  user_id uuid [not null, ref: > users.id]
+  actor_user_id uuid [ref: > users.id]
+  action varchar(10) [not null, note: 'LOCK hoặc UNLOCK']
+  reason varchar(500) [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  Note: 'Nhật ký khóa và mở khóa tài khoản'
+}
+
+TableGroup "Tài khoản" {
+  users
+  refresh_tokens
+  password_reset_tokens
+  authz.account_lock_logs
+  authz.admin_login_logs
+}
+
+TableGroup "Phân quyền" {
+  authz.roles
+  authz.permissions
+  authz.user_roles
+  authz.role_permissions
+  authz.user_permissions
+}
+
+TableGroup "Yêu cầu vai trò" {
+  role_requests
+  organizer_profiles
+  authz.role_change_logs
+}
