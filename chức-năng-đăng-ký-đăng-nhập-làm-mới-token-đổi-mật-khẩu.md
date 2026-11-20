@@ -167,7 +167,7 @@ Mã sai, đã dùng, hoặc hết hạn: `400 RESET_TOKEN_INVALID`. Mật khẩu
 
 ### Hồ sơ
 
-`GET /api/me/profile` và `PUT /api/me/profile` — bắt buộc access token và quyền `PER-04`. Email không đổi.
+`GET /api/me/profile` và `PUT /api/me/profile` — bắt buộc access token và quyền `MANAGE_PROFILE`. Email không đổi.
 
 ```bash
 curl --location '{{base_url}}/api/me/profile' \
@@ -194,14 +194,14 @@ Số điện thoại trùng tài khoản khác chưa xóa: `409 PHONE_TAKEN`.
 
 ### Khóa tài khoản
 
-Admin có `PER-05` xem tối đa 20 tài khoản chưa xóa. Bỏ trống `name` thì lấy 20 tài khoản đầu. Có `name` thì lọc theo email, username hoặc họ tên.
+Admin có `READ_USERS` xem tối đa 20 tài khoản chưa xóa. Bỏ trống `name` thì lấy 20 tài khoản đầu. Có `name` thì lọc theo email, username hoặc họ tên.
 
 ```bash
 curl --location '{{base_url}}/api/admin/users?name=vu' \
 --header 'Authorization: Bearer {{accessToken}}'
 ```
 
-Admin có `PER-07` khóa hoặc mở khóa. Username của tài khoản đăng ký mới trùng email. Bắt buộc có lý do. Admin không tự khóa mình: `409 CANNOT_LOCK_SELF`.
+Admin có `LOCK_ACCOUNT` khóa hoặc mở khóa. Username của tài khoản đăng ký mới trùng email. Bắt buộc có lý do. Admin không tự khóa mình: `409 CANNOT_LOCK_SELF`.
 
 ```bash
 curl --location '{{base_url}}/api/admin/users/vu@example.com/lock' \
@@ -238,7 +238,7 @@ Mọi refresh token đang hoạt động của user bị đánh dấu `revoked =
 
 ### Xin thêm hoặc gỡ vai trò
 
-Đăng ký không chọn vai trò. Người đã đăng nhập tự xin thêm hoặc gỡ mọi vai trò có `requestable = true`. Xem vai trò và lịch sử cần `PER-09`. Gửi hoặc hủy yêu cầu cần `PER-02`. Admin duyệt cần `PER-06`. Cấp hoặc gỡ thẳng cần `PER-08`. `ADMIN` không có `PER-02`. `ADMIN` bị khóa trong database, không xin được. Vai trò chỉ đổi khi Admin duyệt. Tài khoản luôn còn ít nhất một vai trò.
+Đăng ký không chọn vai trò. Người đã đăng nhập tự xin thêm hoặc gỡ mọi vai trò có `requestable = true`. Xem vai trò và lịch sử cần `VIEW_OWN_ROLES`. Gửi hoặc hủy yêu cầu cần `REQUEST_ROLE`. Admin duyệt cần `REVIEW_ROLE_REQUEST`. Cấp hoặc gỡ thẳng cần `MANAGE_ROLES`. `ADMIN` không có `REQUEST_ROLE`. `ADMIN` bị khóa trong database, không xin được. Vai trò chỉ đổi khi Admin duyệt. Tài khoản luôn còn ít nhất một vai trò.
 
 Vai trò được phép xin:
 
@@ -264,7 +264,7 @@ curl --location '{{base_url}}/api/me/permissions' \
 ```json
 [
   {
-    "code": "PER-04",
+    "code": "MANAGE_PROFILE",
     "name": "Xem, sửa hồ sơ; đổi mật khẩu; làm mới token; đăng xuất",
     "group": "ACCOUNT",
     "action": "MANAGE_PROFILE",
@@ -389,7 +389,7 @@ Lỗi được trả về dạng:
 | `REFRESH_TOKEN_INVALID` | 401 | Refresh token sai hoặc hết hạn |
 | `LOGIN_LOCKED` | 429 | Sai mật khẩu 5 lần, khóa đăng nhập 15 phút |
 | `RESET_TOKEN_INVALID` | 400 | Mã đặt lại mật khẩu sai, đã dùng, hoặc hết hạn |
-| `FORBIDDEN` | 403 | Không đủ quyền, ví dụ thiếu `PER-02`, `PER-04`, `PER-05`, `PER-06`, `PER-07`, `PER-08`, `PER-09` |
+| `FORBIDDEN` | 403 | Không đủ quyền, ví dụ thiếu `REQUEST_ROLE`, `MANAGE_PROFILE`, `READ_USERS`, `REVIEW_ROLE_REQUEST`, `LOCK_ACCOUNT`, `MANAGE_ROLES`, `VIEW_OWN_ROLES` |
 | `ACCOUNT_DISABLED` | 403 | Đăng nhập khi tài khoản bị khóa |
 | `TOO_MANY_REQUESTS` | 429 | Đăng nhập quá 20 lần/phút/IP, hoặc đăng ký quá 5 lần/giờ/IP |
 | `VALIDATION_ERROR` | 400 | Body không đúng ràng buộc |
@@ -452,7 +452,7 @@ Dữ liệu sẵn sau migration:
 
 User tự đăng ký nhận role `CUSTOMER` và data scope `OWN`. Muốn thêm hoặc gỡ vai trò khác thì gửi yêu cầu, Admin duyệt. `ADMIN` chỉ được Admin cấp thẳng.
 
-Role trong hệ thống: `GUEST`, `CUSTOMER`, `ORGANIZER`, `ADMIN`, `SYSTEM`. Quyền là `PER-01` đến `PER-65`. `Có` lưu `ALL`, `Riêng` lưu `OWN`, `Auto` lưu `AUTO`. Ô không được phép không có dòng trong `authz.role_permissions`.
+Role trong hệ thống: `GUEST`, `CUSTOMER`, `ORGANIZER`, `ADMIN`, `SYSTEM`. Quyền dùng tên hành động, ví dụ `REGISTER`, `MANAGE_PROFILE`, `READ_UNPUBLISHED_EVENT`. `Có` lưu `ALL`, `Riêng` lưu `OWN`, `Auto` lưu `AUTO`. Ô không được phép không có dòng trong `authz.role_permissions`.
 
 `V2` còn một dòng log đăng nhập mẫu của `admin` và một refresh token dev cho `admin` (raw token `dev-test-refresh-token-001`, hạn 7 ngày kể từ lúc migration chạy). `V5` đã xóa quyền gán thẳng `USER_PROFILE_READ`.
 

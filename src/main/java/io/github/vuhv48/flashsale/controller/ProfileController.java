@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/me/profile")
 @RequiredArgsConstructor
-@PreAuthorize("hasAuthority('PER-04')")
+@PreAuthorize("hasAuthority('MANAGE_PROFILE')")
 public class ProfileController {
 
 	private final AuthAccountService authAccountService;
